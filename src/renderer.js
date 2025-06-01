@@ -64,6 +64,11 @@ class FotoFusionApp {
             this.clearAll();
         });
 
+        // Statistics button
+        document.getElementById('statsBtn').addEventListener('click', () => {
+            this.showStatistics();
+        });
+
         // Structure change
         document.getElementById('folderStructure').addEventListener('change', () => {
             this.updateFolderPreview();
@@ -833,6 +838,7 @@ Keyboard Shortcuts:
         const scanBtn = document.getElementById('scanBtn');
         const startBtn = document.getElementById('startCopyBtn');
         const clearBtn = document.getElementById('clearBtn');
+        const statsBtn = document.getElementById('statsBtn');
         
         const hasPhotos = this.photoProcessor.photos.length > 0;
         const hasIncludedPhotos = hasPhotos && this.photoProcessor.getIncludedPhotos().length > 0;
@@ -840,6 +846,7 @@ Keyboard Shortcuts:
         scanBtn.disabled = this.isProcessing || !this.sourcePath;
         startBtn.disabled = this.isProcessing || !this.sourcePath || !this.destinationPath || !hasIncludedPhotos;
         clearBtn.disabled = this.isProcessing;
+        statsBtn.disabled = this.isProcessing || !hasPhotos;
         
         // Update selection control buttons
         const selectAllPhotosBtn = document.getElementById('selectAllPhotosBtn');
