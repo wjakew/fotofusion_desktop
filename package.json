@@ -1,0 +1,42 @@
+{
+  "name": "fotofusion",
+  "version": "1.0.0",
+  "description": "Cross-platform photo organization app",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "dev": "electron . --dev"
+  },
+  "keywords": ["electron", "photo", "organization", "metadata"],
+  "author": "Jakub Wawak",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "dependencies": {
+    "exifr": "^7.1.3",
+    "glob": "^10.3.10"
+  },
+  "build": {
+    "appId": "com.jakubwawak.fotofusion",
+    "productName": "FotoFusion",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.photography"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

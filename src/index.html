@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FotoFusion</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Custom Title Bar -->
+    <div class="title-bar">
+        <div class="title-bar-left">
+            <span class="app-title">fotofusion by jakub wawak</span>
+        </div>
+        <div class="title-bar-controls">
+            <button class="title-btn" id="minimizeBtn">−</button>
+            <button class="title-btn" id="maximizeBtn">□</button>
+            <button class="title-btn close" id="closeBtn">×</button>
+        </div>
+    </div>
+
+    <!-- Menu Bar -->
+    <div class="menu-bar">
+        <div class="menu-item" id="fileMenu">
+            <span class="menu-label">File</span>
+            <div class="menu-dropdown">
+                <div class="menu-option" id="newProjectBtn">New Project</div>
+                <div class="menu-divider"></div>
+                <div class="menu-option" id="exitBtn">Exit</div>
+            </div>
+        </div>
+        <div class="menu-item" id="presetsMenu">
+            <span class="menu-label">Presets</span>
+            <div class="menu-dropdown">
+                <div class="menu-option" id="savePresetMenuBtn">Save Preset...</div>
+                <div class="menu-option" id="loadPresetMenuBtn">Load Preset...</div>
+                <div class="menu-divider"></div>
+                <div class="menu-option" id="managePresetsBtn">Manage Presets</div>
+            </div>
+        </div>
+        <div class="menu-item" id="viewMenu">
+            <span class="menu-label">View</span>
+            <div class="menu-dropdown">
+                <div class="menu-option" id="refreshBtn">Refresh Preview</div>
+                <div class="menu-option" id="expandAllBtn">Expand All Folders</div>
+                <div class="menu-option" id="collapseAllBtn">Collapse All Folders</div>
+            </div>
+        </div>
+        <div class="menu-item" id="helpMenu">
+            <span class="menu-label">Help</span>
+            <div class="menu-dropdown">
+                <div class="menu-option" id="aboutBtn">About FotoFusion</div>
+                <div class="menu-option" id="shortcutsBtn">Keyboard Shortcuts</div>
+                <div class="menu-divider"></div>
+                <div class="menu-option" id="supportBtn">Support</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <div class="section">
+                <h3>Source Selection</h3>
+                <button class="btn" id="selectSourceBtn">Select Source Folder</button>
+                <div class="folder-path" id="sourcePath">No folder selected</div>
+            </div>
+
+            <div class="section">
+                <h3>Destination</h3>
+                <button class="btn" id="selectDestBtn">Select Destination Folder</button>
+                <div class="folder-path" id="destPath">No folder selected</div>
+            </div>
+
+            <div class="section">
+                <h3>Organization Options</h3>
+                <div class="form-group">
+                    <label>Folder Structure:</label>
+                    <select id="folderStructure">
+                        <option value="date">By Date</option>
+                        <option value="camera">By Camera</option>
+                        <option value="lens">By Lens</option>
+                        <option value="date-camera">Date > Camera</option>
+                        <option value="camera-date">Camera > Date</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Date Format:</label>
+                    <select id="dateFormat">
+                        <option value="YYYY/MM/DD">Year/Month/Day (2024/01/15)</option>
+                        <option value="YYYY-MM-DD">Year-Month-Day (2024-01-15)</option>
+                        <option value="YYYY/MM">Year/Month (2024/01)</option>
+                        <option value="YYYY-MM">Year-Month (2024-01)</option>
+                        <option value="YYYY">Year Only (2024)</option>
+                        <option value="DD-MM-YYYY">Day-Month-Year (15-01-2024)</option>
+                        <option value="MM-DD-YYYY">Month-Day-Year (01-15-2024)</option>
+                        <option value="Month YYYY">Month Year (January 2024)</option>
+                        <option value="YYYY/Month">Year/Month Name (2024/January)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Folder Prefix:</label>
+                    <input type="text" id="folderPrefix" placeholder="Optional prefix">
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="preserveOriginal"> Keep original filenames
+                    </label>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Photos Found</h3>
+                <div class="photo-count" id="photoCount">0 photos</div>
+                <div class="photo-list" id="photoList">
+                    <div class="no-photos">Scan for photos to see list</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <div class="section">
+                <h3>Folder Structure Preview</h3>
+                <div class="folder-preview" id="folderPreview">
+                    <div class="no-preview">Select source and destination to preview structure</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Actions</h3>
+                <button class="btn primary" id="scanBtn" disabled>Scan for Photos</button>
+                <button class="btn success" id="startCopyBtn" disabled>Start Copy Process</button>
+                <button class="btn secondary" id="clearBtn">Clear All</button>
+            </div>
+
+            <div class="section">
+                <h3>Progress</h3>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">Ready to start</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Log</h3>
+                <div class="log-container" id="logContainer">
+                    <div class="log-entry">Application started</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preset Modal -->
+    <div class="modal" id="presetModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Save Preset</h3>
+                <button class="modal-close" id="modalCloseBtn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="presetNameInput">Preset Name:</label>
+                    <input type="text" id="presetNameInput" placeholder="Enter preset name">
+                </div>
+                <div class="preset-summary" id="presetSummary">
+                    <!-- Summary will be populated by JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn secondary" id="modalCancelBtn">Cancel</button>
+                <button class="btn primary" id="modalSaveBtn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- About Modal -->
+    <div class="modal" id="aboutModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>About FotoFusion</h3>
+                <button class="modal-close" id="aboutModalCloseBtn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="about-content">
+                    <div class="app-logo">📸</div>
+                    <h4>FotoFusion v1.0.0</h4>
+                    <p>Professional photo organization tool</p>
+                    <p>Created by <strong>Jakub Wawak</strong></p>
+                    <br>
+                    <p><strong>Features:</strong></p>
+                    <ul>
+                        <li>Support for RAW and JPEG formats</li>
+                        <li>Metadata-based organization</li>
+                        <li>Flexible folder structures</li>
+                        <li>Copy reports and presets</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn primary" id="aboutModalOkBtn">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="photoProcessor.js"></script>
+    <script src="renderer.js"></script>
+</body>
+
+</html>

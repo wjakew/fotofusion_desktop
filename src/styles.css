@@ -1,0 +1,604 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: #000;
+    color: #fff;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+}
+
+/* Title Bar */
+.title-bar {
+    height: 32px;
+    background: #111;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 16px;
+    border-bottom: 1px solid #333;
+    -webkit-app-region: drag;
+}
+
+.app-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #fff;
+}
+
+.title-bar-controls {
+    display: flex;
+    -webkit-app-region: no-drag;
+}
+
+.title-btn {
+    width: 32px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.title-btn:hover {
+    background: #333;
+}
+
+.title-btn.close:hover {
+    background: #e74c3c;
+}
+
+/* Menu Bar */
+.menu-bar {
+    height: 36px;
+    background: #1a1a1a;
+    border-bottom: 1px solid #333;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    position: relative;
+}
+
+.menu-item {
+    position: relative;
+    margin-right: 24px;
+}
+
+.menu-label {
+    padding: 8px 12px;
+    font-size: 14px;
+    color: #ccc;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: block;
+}
+
+.menu-label:hover {
+    background: #333;
+    color: #fff;
+}
+
+.menu-item.active .menu-label {
+    background: #333;
+    color: #fff;
+}
+
+.menu-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    min-width: 200px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition: all 0.2s;
+}
+
+.menu-item.active .menu-dropdown {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.menu-option {
+    padding: 10px 16px;
+    font-size: 14px;
+    color: #ccc;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 4px;
+    margin: 4px;
+}
+
+.menu-option:hover {
+    background: #444;
+    color: #fff;
+}
+
+.menu-option:active {
+    background: #555;
+}
+
+.menu-divider {
+    height: 1px;
+    background: #444;
+    margin: 4px 12px;
+}
+
+/* Main Container */
+.main-container {
+    display: flex;
+    height: calc(100vh - 68px);
+    /* Title bar (32px) + Menu bar (36px) */
+}
+
+.left-panel,
+.right-panel {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.left-panel {
+    border-right: 1px solid #333;
+    background: #0a0a0a;
+}
+
+.right-panel {
+    background: #111;
+}
+
+/* Sections */
+.section {
+    margin-bottom: 24px;
+}
+
+.section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #fff;
+    border-bottom: 1px solid #333;
+    padding-bottom: 8px;
+}
+
+/* Buttons */
+.btn {
+    background: #333;
+    border: 1px solid #555;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    display: inline-block;
+    text-align: center;
+    min-width: 120px;
+    margin-right: 8px;
+    margin-bottom: 8px;
+}
+
+.btn:hover:not(:disabled) {
+    background: #444;
+    border-color: #666;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn.primary {
+    background: #2c3e50;
+    border-color: #34495e;
+}
+
+.btn.primary:hover:not(:disabled) {
+    background: #34495e;
+}
+
+.btn.success {
+    background: #27ae60;
+    border-color: #2ecc71;
+}
+
+.btn.success:hover:not(:disabled) {
+    background: #2ecc71;
+}
+
+.btn.secondary {
+    background: transparent;
+    border-color: #555;
+}
+
+.btn.secondary:hover:not(:disabled) {
+    background: #222;
+}
+
+/* Form Elements */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    color: #ccc;
+}
+
+input[type="text"],
+select {
+    width: 100%;
+    padding: 8px 12px;
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 14px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+select {
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23fff" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 16px;
+    padding-right: 32px;
+}
+
+input[type="text"]:focus,
+select:focus {
+    outline: none;
+    border-color: #666;
+    background: #2a2a2a;
+}
+
+input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+/* Folder Path */
+.folder-path {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #888;
+    margin-top: 8px;
+    word-break: break-all;
+}
+
+/* Photo List */
+.photo-count {
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #fff;
+}
+
+.photo-list {
+    max-height: 200px;
+    overflow-y: auto;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.photo-item {
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #ccc;
+    margin-bottom: 2px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.photo-item:hover {
+    background: #333;
+}
+
+.no-photos {
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    padding: 20px;
+}
+
+/* Folder Preview */
+.folder-preview {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 16px;
+    min-height: 300px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    overflow-y: auto;
+}
+
+.folder-tree {
+    line-height: 1.4;
+}
+
+.folder-item {
+    margin: 2px 0;
+    color: #ccc;
+}
+
+.folder-item.folder {
+    color: #4a9eff;
+    font-weight: 600;
+}
+
+.folder-item.file {
+    color: #888;
+    margin-left: 20px;
+}
+
+.no-preview {
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    padding: 40px 20px;
+}
+
+/* Progress */
+.progress-container {
+    margin-top: 12px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #27ae60, #2ecc71);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 12px;
+    color: #ccc;
+    text-align: center;
+}
+
+/* Log */
+.log-container {
+    background: #0a0a0a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 12px;
+    height: 150px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+}
+
+.log-entry {
+    margin-bottom: 4px;
+    color: #888;
+    line-height: 1.3;
+}
+
+.log-entry.error {
+    color: #e74c3c;
+}
+
+.log-entry.success {
+    color: #27ae60;
+}
+
+.log-entry.info {
+    color: #3498db;
+}
+
+/* Preset Controls */
+.preset-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.preset-controls input {
+    margin-bottom: 8px;
+}
+
+/* Modals */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+}
+
+.modal.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    min-width: 400px;
+    max-width: 500px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    transform: scale(0.9);
+    transition: transform 0.3s;
+}
+
+.modal.active .modal-content {
+    transform: scale(1);
+}
+
+.modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #fff;
+}
+
+.modal-close {
+    background: transparent;
+    border: none;
+    color: #ccc;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.modal-close:hover {
+    background: #333;
+    color: #fff;
+}
+
+.modal-body {
+    padding: 20px 24px;
+}
+
+.modal-footer {
+    padding: 16px 24px 20px;
+    border-top: 1px solid #333;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.preset-summary {
+    background: #0a0a0a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 16px;
+    margin-top: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.preset-summary h4 {
+    margin: 0 0 12px 0;
+    color: #fff;
+    font-size: 14px;
+}
+
+.preset-summary .summary-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    color: #ccc;
+}
+
+.preset-summary .summary-item:last-child {
+    margin-bottom: 0;
+}
+
+.preset-summary .summary-label {
+    color: #888;
+}
+
+.preset-summary .summary-value {
+    color: #fff;
+    font-weight: 500;
+}
+
+/* About Modal */
+.about-content {
+    text-align: center;
+    color: #ccc;
+}
+
+.app-logo {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.about-content h4 {
+    font-size: 20px;
+    color: #fff;
+    margin: 0 0 8px 0;
+}
+
+.about-content p {
+    margin: 8px 0;
+}
+
+.about-content ul {
+    text-align: left;
+    margin: 16px 0;
+    padding-left: 20px;
+}
+
+.about-content li {
+    margin: 6px 0;
+    color: #bbb;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
