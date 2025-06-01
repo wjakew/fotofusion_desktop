@@ -44,8 +44,10 @@
             <span class="menu-label">View</span>
             <div class="menu-dropdown">
                 <div class="menu-option" id="refreshBtn">Refresh Preview</div>
-                <div class="menu-option" id="expandAllBtn">Expand All Folders</div>
-                <div class="menu-option" id="collapseAllBtn">Collapse All Folders</div>
+                <div class="menu-divider"></div>
+                <div class="menu-option" id="selectAllItemsBtn">Select All Items</div>
+                <div class="menu-option" id="deselectAllItemsBtn">Deselect All Items</div>
+                <div class="menu-option" id="clearExclusionsBtn">Clear All Exclusions</div>
             </div>
         </div>
         <div class="menu-item" id="helpMenu">
@@ -117,7 +119,18 @@
 
             <div class="section">
                 <h3>Photos Found</h3>
-                <div class="photo-count" id="photoCount">0 photos</div>
+                <div class="photo-controls">
+                    <div class="photo-count" id="photoCount">0 photos</div>
+                    <div class="selection-controls">
+                        <button class="btn-small" id="selectAllPhotosBtn">Select All</button>
+                        <button class="btn-small" id="deselectAllPhotosBtn">Deselect All</button>
+                        <button class="btn-small" id="invertSelectionBtn">Invert</button>
+                    </div>
+                </div>
+                <div class="exclusion-stats" id="exclusionStats">
+                    <span class="included-count">0 included</span> •
+                    <span class="excluded-count">0 excluded</span>
+                </div>
                 <div class="photo-list" id="photoList">
                     <div class="no-photos">Scan for photos to see list</div>
                 </div>
@@ -128,6 +141,10 @@
         <div class="right-panel">
             <div class="section">
                 <h3>Folder Structure Preview</h3>
+                <div class="preview-controls">
+                    <button class="btn-small" id="selectAllFoldersBtn">Include All Folders</button>
+                    <button class="btn-small" id="deselectAllFoldersBtn">Exclude All Folders</button>
+                </div>
                 <div class="folder-preview" id="folderPreview">
                     <div class="no-preview">Select source and destination to preview structure</div>
                 </div>
@@ -207,6 +224,26 @@
             </div>
             <div class="modal-footer">
                 <button class="btn primary" id="aboutModalOkBtn">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Preset Modal -->
+    <div class="modal" id="loadPresetModal">
+        <div class="modal-content" style="min-width: 500px;">
+            <div class="modal-header">
+                <h3>Load Preset</h3>
+                <button class="modal-close" id="loadPresetModalCloseBtn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="stored-presets-list" id="storedPresetsList">
+                    <div class="loading-presets">Loading presets...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn secondary" id="loadPresetModalCancelBtn">Cancel</button>
+                <button class="btn secondary" id="loadFromFileBtn">Load from File</button>
+                <button class="btn primary" id="loadSelectedPresetBtn" disabled>Load Selected</button>
             </div>
         </div>
     </div>

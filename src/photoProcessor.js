@@ -17,10 +17,16 @@ class PhotoProcessor {
         ];
         this.photos = [];
         this.folderStructure = {};
+        this.excludedPhotos = new Set(); // Track excluded individual photos
+        this.excludedFolders = new Set(); // Track excluded folders
     }
 
     async scanFolder(folderPath, onProgress = null) {
         this.photos = [];
+        this.excludedPhotos.clear();
+        this.excludedFolders.clear();
+        this.folderStructure = {};
+        
         const patterns = this.supportedFormats.map(format => 
             path.join(folderPath, '**', format).replace(/\\/g, '/')
         );
@@ -38,12 +44,14 @@ class PhotoProcessor {
             const filePath = allFiles[i];
             try {
                 const metadata = await this.extractMetadata(filePath);
-                this.photos.push({
+                const photo = {
+                    id: `photo_${Date.now()}_${i}`, // More unique ID generation
                     path: filePath,
                     filename: path.basename(filePath),
                     metadata: metadata,
                     size: (await fs.stat(filePath)).size
-                });
+                };
+                this.photos.push(photo);
 
                 if (onProgress) {
                     onProgress({
@@ -58,6 +66,94 @@ class PhotoProcessor {
         }
 
         return this.photos;
+    }
+
+    // Exclusion management methods
+    togglePhotoExclusion(photoId) {
+        if (this.excludedPhotos.has(photoId)) {
+            this.excludedPhotos.delete(photoId);
+            return false; // Not excluded
+        } else {
+            this.excludedPhotos.add(photoId);
+            return true; // Excluded
+        }
+    }
+
+    toggleFolderExclusion(folderPath) {
+        if (this.excludedFolders.has(folderPath)) {
+            this.excludedFolders.delete(folderPath);
+            return false; // Not excluded
+        } else {
+            this.excludedFolders.add(folderPath);
+            return true; // Excluded
+        }
+    }
+
+    isPhotoExcluded(photoId) {
+        return this.excludedPhotos.has(photoId);
+    }
+
+    isFolderExcluded(folderPath) {
+        return this.excludedFolders.has(folderPath);
+    }
+
+    getIncludedPhotos() {
+        return this.photos.filter(photo => {
+            // Check if photo is individually excluded
+            if (this.excludedPhotos.has(photo.id)) {
+                return false;
+            }
+            
+            // Check if photo's folder is excluded
+            const folderPath = this.getPhotoFolderPath(photo);
+            return !this.excludedFolders.has(folderPath);
+        });
+    }
+
+    getPhotoFolderPath(photo) {
+        // Find which folder this photo belongs to
+        for (const [folderPath, photos] of Object.entries(this.folderStructure)) {
+            if (photos.some(p => p.id === photo.id)) {
+                return folderPath;
+            }
+        }
+        return null;
+    }
+
+    getExclusionStats() {
+        const totalPhotos = this.photos.length;
+        const excludedByPhoto = this.excludedPhotos.size;
+        
+        let excludedByFolder = 0;
+        for (const [folderPath, photos] of Object.entries(this.folderStructure)) {
+            if (this.excludedFolders.has(folderPath)) {
+                // Only count photos not already individually excluded
+                excludedByFolder += photos.filter(photo => !this.excludedPhotos.has(photo.id)).length;
+            }
+        }
+        
+        const totalExcluded = excludedByPhoto + excludedByFolder;
+        const included = Math.max(0, totalPhotos - totalExcluded);
+        
+        return {
+            total: totalPhotos,
+            included: included,
+            excludedByPhoto: excludedByPhoto,
+            excludedByFolder: excludedByFolder,
+            totalExcluded: totalExcluded,
+            excludedFolders: this.excludedFolders.size
+        };
+    }
+
+    clearExclusions() {
+        this.excludedPhotos.clear();
+        this.excludedFolders.clear();
+    }
+
+    // Initialize exclusion tracking when creating folder structure
+    initializeExclusions() {
+        if (!this.excludedPhotos) this.excludedPhotos = new Set();
+        if (!this.excludedFolders) this.excludedFolders = new Set();
     }
 
     async extractMetadata(filePath) {
@@ -153,6 +249,7 @@ class PhotoProcessor {
     }
 
     generateFolderStructure(structureType, prefix = '', dateFormat = 'YYYY/MM/DD') {
+        this.initializeExclusions();
         this.folderStructure = {};
         
         for (const photo of this.photos) {
@@ -247,20 +344,41 @@ class PhotoProcessor {
     }
 
     async copyPhotos(destinationRoot, preserveOriginal = true, onProgress = null) {
+        const includedPhotos = this.getIncludedPhotos();
         const results = {
             success: 0,
             failed: 0,
             errors: [],
-            foldersCopied: Object.keys(this.folderStructure).length,
+            foldersCopied: 0,
             totalPhotos: this.photos.length,
+            includedPhotos: includedPhotos.length,
+            excludedPhotos: this.photos.length - includedPhotos.length,
             startTime: new Date(),
             endTime: null
         };
 
         let processedCount = 0;
-        const totalFiles = this.photos.length;
+        const totalFiles = includedPhotos.length;
 
+        // Create folder structure only for included photos
+        const includedFolderStructure = {};
         for (const [folderPath, photos] of Object.entries(this.folderStructure)) {
+            if (this.excludedFolders.has(folderPath)) {
+                continue; // Skip excluded folders entirely
+            }
+            
+            const includedPhotosInFolder = photos.filter(photo => 
+                !this.excludedPhotos.has(photo.id)
+            );
+            
+            if (includedPhotosInFolder.length > 0) {
+                includedFolderStructure[folderPath] = includedPhotosInFolder;
+            }
+        }
+
+        results.foldersCopied = Object.keys(includedFolderStructure).length;
+
+        for (const [folderPath, photos] of Object.entries(includedFolderStructure)) {
             const targetFolder = path.join(destinationRoot, folderPath);
             
             try {
@@ -320,13 +438,16 @@ class PhotoProcessor {
     generateReport(results, structureType, prefix, destinationPath, dateFormat) {
         const duration = results.endTime - results.startTime;
         const durationMinutes = Math.round(duration / 60000 * 100) / 100;
+        const exclusionStats = this.getExclusionStats();
 
         let report = `# FotoFusion Copy Report\n\n`;
         report += `**Generated:** ${new Date().toLocaleString()}\n`;
         report += `**Duration:** ${durationMinutes} minutes\n\n`;
 
         report += `## Summary\n\n`;
-        report += `- **Total Photos:** ${results.totalPhotos}\n`;
+        report += `- **Total Photos Found:** ${results.totalPhotos}\n`;
+        report += `- **Photos Included:** ${results.includedPhotos}\n`;
+        report += `- **Photos Excluded:** ${results.excludedPhotos}\n`;
         report += `- **Successfully Copied:** ${results.success}\n`;
         report += `- **Failed:** ${results.failed}\n`;
         report += `- **Folders Created:** ${results.foldersCopied}\n`;
@@ -335,18 +456,41 @@ class PhotoProcessor {
         if (prefix) report += `- **Prefix:** ${prefix}\n`;
         report += `- **Destination:** ${destinationPath}\n\n`;
 
+        if (exclusionStats.totalExcluded > 0) {
+            report += `## Exclusions\n\n`;
+            report += `- **Individual Photos Excluded:** ${exclusionStats.excludedByPhoto}\n`;
+            report += `- **Photos Excluded by Folder:** ${exclusionStats.excludedByFolder}\n`;
+            report += `- **Folders Excluded:** ${exclusionStats.excludedFolders}\n`;
+            
+            if (this.excludedFolders.size > 0) {
+                report += `\n**Excluded Folders:**\n`;
+                for (const folderPath of this.excludedFolders) {
+                    const folderPhotos = this.folderStructure[folderPath] || [];
+                    report += `- ${folderPath} (${folderPhotos.length} photos)\n`;
+                }
+            }
+            report += `\n`;
+        }
+
         if (results.success > 0) {
-            report += `## Folder Structure\n\n`;
+            report += `## Copied Folder Structure\n\n`;
             for (const [folderPath, photos] of Object.entries(this.folderStructure)) {
-                report += `### ${folderPath}\n`;
-                report += `${photos.length} photos\n\n`;
+                if (this.excludedFolders.has(folderPath)) {
+                    continue; // Skip excluded folders in the report
+                }
                 
-                for (const photo of photos.slice(0, 10)) { // Limit to first 10 files
+                const includedPhotos = photos.filter(photo => !this.excludedPhotos.has(photo.id));
+                if (includedPhotos.length === 0) continue;
+                
+                report += `### ${folderPath}\n`;
+                report += `${includedPhotos.length} photos copied\n\n`;
+                
+                for (const photo of includedPhotos.slice(0, 10)) { // Limit to first 10 files
                     report += `- ${photo.filename}\n`;
                 }
                 
-                if (photos.length > 10) {
-                    report += `- ... and ${photos.length - 10} more files\n`;
+                if (includedPhotos.length > 10) {
+                    report += `- ... and ${includedPhotos.length - 10} more files\n`;
                 }
                 report += `\n`;
             }
@@ -364,24 +508,25 @@ class PhotoProcessor {
         }
 
         report += `## Statistics\n\n`;
-        const cameras = [...new Set(this.photos.map(p => p.metadata.camera))];
-        const lenses = [...new Set(this.photos.map(p => p.metadata.lens))];
+        const includedPhotos = this.getIncludedPhotos();
+        const cameras = [...new Set(includedPhotos.map(p => p.metadata.camera))];
+        const lenses = [...new Set(includedPhotos.map(p => p.metadata.lens))];
         
-        report += `- **Unique Cameras:** ${cameras.length}\n`;
+        report += `- **Unique Cameras (copied):** ${cameras.length}\n`;
         for (const camera of cameras) {
-            const count = this.photos.filter(p => p.metadata.camera === camera).length;
+            const count = includedPhotos.filter(p => p.metadata.camera === camera).length;
             report += `  - ${camera}: ${count} photos\n`;
         }
         
-        report += `\n- **Unique Lenses:** ${lenses.length}\n`;
+        report += `\n- **Unique Lenses (copied):** ${lenses.length}\n`;
         for (const lens of lenses) {
-            const count = this.photos.filter(p => p.metadata.lens === lens).length;
+            const count = includedPhotos.filter(p => p.metadata.lens === lens).length;
             report += `  - ${lens}: ${count} photos\n`;
         }
 
-        const totalSize = this.photos.reduce((sum, photo) => sum + photo.metadata.fileSize, 0);
+        const totalSize = includedPhotos.reduce((sum, photo) => sum + photo.metadata.fileSize, 0);
         const sizeGB = (totalSize / (1024 * 1024 * 1024)).toFixed(2);
-        report += `\n- **Total Size:** ${sizeGB} GB\n`;
+        report += `\n- **Total Size (copied):** ${sizeGB} GB\n`;
 
         return report;
     }
