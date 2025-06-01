@@ -271,6 +271,28 @@
         </div>
     </div>
 
+    <!-- Completion Modal -->
+    <div class="modal" id="completionModal">
+        <div class="modal-content" style="min-width: 600px;">
+            <div class="modal-header">
+                <h3>Copy Process Complete</h3>
+                <button class="modal-close" id="completionModalCloseBtn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="completion-stats" id="completionStats">
+                    <!-- Stats will be filled by JavaScript -->
+                </div>
+                <div class="verification-status" id="verificationStatus" style="margin-top: 15px; display: none;">
+                    <!-- Verification results will be shown here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn primary" id="verifyFilesBtn">Verify Files</button>
+                <button class="btn secondary" id="completionModalCloseBtn2">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script src="photoProcessor.js"></script>
     <script src="renderer.js"></script>
 </body>

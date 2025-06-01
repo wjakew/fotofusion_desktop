@@ -19,6 +19,7 @@ FotoFusion is a professional photo organization tool that helps photographers ef
   - Batch processing capabilities
   - Preview folder structure before copying
   - Selective folder inclusion/exclusion
+  - Completion statistics and verification
 
 - **Preset System**
   - Save organization settings as presets
@@ -64,6 +65,8 @@ FotoFusion is a professional photo organization tool that helps photographers ef
    - Click "Start Copy Process" to begin organization
    - Monitor progress in real-time
    - Review the log for detailed operation information
+   - View completion statistics when finished
+   - Verify files were copied correctly with the verification tool
 
 ### Using Presets
 

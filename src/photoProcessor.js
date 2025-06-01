@@ -899,7 +899,113 @@ class PhotoProcessor {
 
         return report;
     }
+
+    async verifyFilesCopy(destinationRoot, onProgress = null) {
+        const includedPhotos = this.getIncludedPhotos();
+        const results = {
+            total: includedPhotos.length,
+            verified: 0,
+            failed: 0,
+            missing: 0,
+            sizeMatch: 0,
+            sizeMismatch: 0,
+            errors: [],
+            startTime: new Date(),
+            endTime: null
+        };
+
+        let processedCount = 0;
+        const totalFiles = includedPhotos.length;
+
+        // Create a map of expected files based on included folders
+        const expectedFiles = new Map();
+        
+        for (const [folderPath, photos] of Object.entries(this.folderStructure)) {
+            const normalizedPath = folderPath.split(path.sep).join('/');
+            const isExcluded = this.excludedFolders.has(folderPath) || this.excludedFolders.has(normalizedPath);
+            
+            // Skip excluded folders
+            if (isExcluded) {
+                continue;
+            }
+            
+            // Filter out individually excluded photos from this folder
+            const includedPhotosInFolder = photos.filter(photo => 
+                !this.excludedPhotos.has(photo.id)
+            );
+            
+            // Process included photos
+            for (const photo of includedPhotosInFolder) {
+                const targetFolder = path.join(destinationRoot, folderPath);
+                const preserveOriginal = true; // Assuming we're checking with original filenames
+                const filename = preserveOriginal ? photo.filename : this.generateNewFilename(photo, 0);
+                const targetPath = path.join(targetFolder, filename);
+                
+                expectedFiles.set(targetPath, {
+                    sourceFile: photo.path,
+                    sourceSize: photo.size,
+                    sourceId: photo.id
+                });
+            }
+        }
+
+        // Verify each expected file
+        for (const [targetPath, fileInfo] of expectedFiles) {
+            try {
+                processedCount++;
+                
+                if (onProgress) {
+                    onProgress({
+                        current: processedCount,
+                        total: totalFiles,
+                        filename: path.basename(targetPath),
+                        action: 'verifying'
+                    });
+                }
+
+                // Check if file exists at target path
+                const fileStats = await fs.stat(targetPath).catch(() => null);
+                
+                if (!fileStats) {
+                    results.missing++;
+                    results.failed++;
+                    results.errors.push({
+                        file: targetPath,
+                        error: 'File is missing at destination'
+                    });
+                    continue;
+                }
+                
+                // Compare file sizes
+                if (fileStats.size === fileInfo.sourceSize) {
+                    results.sizeMatch++;
+                    results.verified++;
+                } else {
+                    results.sizeMismatch++;
+                    results.failed++;
+                    results.errors.push({
+                        file: targetPath,
+                        error: `Size mismatch: expected ${fileInfo.sourceSize} bytes, got ${fileStats.size} bytes`
+                    });
+                }
+            } catch (error) {
+                results.failed++;
+                results.errors.push({
+                    file: targetPath,
+                    error: error.message
+                });
+            }
+        }
+
+        results.endTime = new Date();
+        return results;
+    }
 }
 
 // Make available globally
 window.PhotoProcessor = PhotoProcessor;
+
+// Export the class for use in other modules if we're in a Node.js environment
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = PhotoProcessor;
+}

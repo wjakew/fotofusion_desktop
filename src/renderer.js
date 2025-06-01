@@ -258,6 +258,19 @@ class FotoFusionApp {
             this.exportStatistics();
         });
 
+        // Completion modal
+        document.getElementById('completionModalCloseBtn').addEventListener('click', () => {
+            this.hideModal('completionModal');
+        });
+
+        document.getElementById('completionModalCloseBtn2').addEventListener('click', () => {
+            this.hideModal('completionModal');
+        });
+
+        document.getElementById('verifyFilesBtn').addEventListener('click', () => {
+            this.verifyFilesCopy();
+        });
+
         // Close modals when clicking backdrop
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', (e) => {
@@ -1387,19 +1400,163 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
 
     showCompletionSummary(results) {
         const stats = this.photoProcessor.getExclusionStats();
-        const summary = `
+        const durationMinutes = Math.round((results.endTime - results.startTime) / 60000 * 100) / 100;
+        
+        // Format the summary for the modal
+        const summaryHTML = `
+            <div class="completion-summary">
+                <div class="completion-icon">✅</div>
+                <h4>Copy Process Complete</h4>
+                
+                <div class="stats-grid">
+                    <div class="stats-item">
+                        <span class="stats-label">Copied:</span>
+                        <span class="stats-value">${results.success} photos</span>
+                    </div>
+                    ${results.failed > 0 ? `
+                    <div class="stats-item">
+                        <span class="stats-label">Failed:</span>
+                        <span class="stats-value">${results.failed} photos</span>
+                    </div>` : ''}
+                    <div class="stats-item">
+                        <span class="stats-label">Folders Created:</span>
+                        <span class="stats-value">${results.foldersCopied}</span>
+                    </div>
+                    ${stats.totalExcluded > 0 ? `
+                    <div class="stats-item">
+                        <span class="stats-label">Excluded:</span>
+                        <span class="stats-value">${stats.totalExcluded} photos</span>
+                    </div>` : ''}
+                    <div class="stats-item">
+                        <span class="stats-label">Duration:</span>
+                        <span class="stats-value">${durationMinutes} minutes</span>
+                    </div>
+                </div>
+                
+                <div class="completion-info">
+                    <p>Report saved to destination folder.</p>
+                    <p>Click "Verify Files" to check if all files were copied correctly.</p>
+                </div>
+            </div>
+        `;
+        
+        // Show summary in modal
+        document.getElementById('completionStats').innerHTML = summaryHTML;
+        document.getElementById('verificationStatus').style.display = 'none';
+        this.showModal('completionModal');
+        
+        // Also log to the main window
+        const logSummary = `
 Copy completed successfully!
 
 ✅ ${results.success} photos copied
 ${results.failed > 0 ? `❌ ${results.failed} failed` : ''}
 📁 ${results.foldersCopied} folders created
 ${stats.totalExcluded > 0 ? `🚫 ${stats.totalExcluded} photos excluded` : ''}
-⏱️ Duration: ${Math.round((results.endTime - results.startTime) / 60000 * 100) / 100} minutes
+⏱️ Duration: ${durationMinutes} minutes
 
 Report saved to destination folder.
         `.trim();
         
-        this.log(summary, 'success');
+        this.log(logSummary, 'success');
+    }
+
+    async verifyFilesCopy() {
+        if (!this.destinationPath || this.photoProcessor.photos.length === 0) {
+            this.log('No files to verify', 'error');
+            return;
+        }
+
+        // Disable verify button and show progress
+        const verifyBtn = document.getElementById('verifyFilesBtn');
+        verifyBtn.disabled = true;
+        verifyBtn.textContent = 'Verifying...';
+        
+        // Reset verification status area
+        const verificationStatus = document.getElementById('verificationStatus');
+        verificationStatus.style.display = 'block';
+        verificationStatus.innerHTML = '<div class="verification-progress">Verifying files... Please wait</div>';
+        
+        this.setProgress(0, 'Starting verification...');
+        
+        try {
+            // Run verification
+            const results = await this.photoProcessor.verifyFilesCopy(
+                this.destinationPath,
+                (progress) => {
+                    const percentage = Math.round((progress.current / progress.total) * 100);
+                    this.setProgress(percentage, `Verifying: ${progress.filename} (${progress.current}/${progress.total})`);
+                }
+            );
+
+            // Calculate duration
+            const durationSeconds = Math.round((results.endTime - results.startTime) / 1000);
+            
+            // Show verification results
+            const resultHTML = `
+                <div class="verification-results">
+                    <h4>${results.verified === results.total ? '✅ Verification Successful' : '⚠️ Verification Issues Found'}</h4>
+                    
+                    <div class="stats-grid">
+                        <div class="stats-item">
+                            <span class="stats-label">Files Verified:</span>
+                            <span class="stats-value">${results.verified}/${results.total}</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Size Match:</span>
+                            <span class="stats-value">${results.sizeMatch}</span>
+                        </div>
+                        ${results.sizeMismatch > 0 ? `
+                        <div class="stats-item warning">
+                            <span class="stats-label">Size Mismatch:</span>
+                            <span class="stats-value">${results.sizeMismatch}</span>
+                        </div>` : ''}
+                        ${results.missing > 0 ? `
+                        <div class="stats-item warning">
+                            <span class="stats-label">Missing Files:</span>
+                            <span class="stats-value">${results.missing}</span>
+                        </div>` : ''}
+                        <div class="stats-item">
+                            <span class="stats-label">Duration:</span>
+                            <span class="stats-value">${durationSeconds} seconds</span>
+                        </div>
+                    </div>
+                    
+                    ${results.errors.length > 0 ? `
+                    <div class="verification-errors">
+                        <h5>Issues (${results.errors.length}):</h5>
+                        <ul class="error-list">
+                            ${results.errors.slice(0, 5).map(error => `
+                                <li>
+                                    <span class="error-file">${path.basename(error.file)}</span>
+                                    <span class="error-message">${error.error}</span>
+                                </li>
+                            `).join('')}
+                            ${results.errors.length > 5 ? `<li>... and ${results.errors.length - 5} more issues</li>` : ''}
+                        </ul>
+                    </div>` : ''}
+                </div>
+            `;
+            
+            verificationStatus.innerHTML = resultHTML;
+            
+            // Log to main window
+            if (results.verified === results.total) {
+                this.log(`✅ Verification complete: All ${results.total} files verified successfully`, 'success');
+            } else {
+                this.log(`⚠️ Verification complete: ${results.verified}/${results.total} files verified, ${results.failed} issues found`, 'warning');
+            }
+            
+            this.setProgress(100, 'Verification complete');
+        } catch (error) {
+            verificationStatus.innerHTML = `<div class="verification-error">Error during verification: ${error.message}</div>`;
+            this.log(`Error during verification: ${error.message}`, 'error');
+            this.setProgress(0, 'Verification failed');
+        } finally {
+            // Re-enable verify button
+            verifyBtn.disabled = false;
+            verifyBtn.textContent = 'Verify Files';
+        }
     }
 }
 
