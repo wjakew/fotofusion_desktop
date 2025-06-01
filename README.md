@@ -2,8 +2,6 @@
 
 FotoFusion is a professional photo organization tool that helps photographers efficiently manage and organize their photo collections. It provides a user-friendly interface for organizing photos based on various criteria such as date, camera, and lens information.
 
-![FotoFusion Logo](assets/logo.png) *(Note: Add your logo image)*
-
 ## Features
 
 - **Flexible Organization Options**
@@ -124,10 +122,6 @@ We welcome contributions to FotoFusion! Please read our contributing guidelines 
 3. Commit your changes
 4. Push to the branch
 5. Create a Pull Request
-
-## License
-
-FotoFusion is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Support
 
