@@ -67,9 +67,7 @@ function createPresetManagerWindow() {
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  app.quit();
 });
 
 app.on('activate', () => {
@@ -298,5 +296,17 @@ ipcMain.on('window-maximize', (event) => {
 
 ipcMain.on('window-close', (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  window.close();
+  if (window === mainWindow) {
+    app.quit();
+  } else {
+    window.close();
+  }
+});
+
+// Add before-quit event handler to ensure cleanup
+app.on('before-quit', () => {
+  // Force close any remaining windows
+  BrowserWindow.getAllWindows().forEach(window => {
+    window.destroy();
+  });
 });
