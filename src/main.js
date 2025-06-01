@@ -67,8 +67,16 @@ function createPresetManagerWindow() {
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
+  app.quit();
+});
+
+app.on('before-quit', () => {
+  // Perform any cleanup if needed
+  if (mainWindow) {
+    mainWindow.destroy();
+  }
+  if (presetManagerWindow) {
+    presetManagerWindow.destroy();
   }
 });
 
