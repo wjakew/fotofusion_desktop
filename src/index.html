@@ -61,6 +61,25 @@
         </div>
     </div>
 
+    <!-- Statistics Modal -->
+    <div class="modal" id="statisticsModal">
+        <div class="modal-content" style="min-width: 800px; max-width: 1000px;">
+            <div class="modal-header">
+                <h3>📊 Photo Collection Statistics</h3>
+                <button class="modal-close" id="statisticsModalCloseBtn">×</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div id="statisticsContent">
+                    <div class="loading-stats">Calculating statistics...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn secondary" id="exportStatsBtn">Export Statistics</button>
+                <button class="btn primary" id="statisticsModalOkBtn">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Content -->
     <div class="main-container">
         <!-- Left Panel -->

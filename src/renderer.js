@@ -16,8 +16,12 @@ class FotoFusionApp {
             this.photoProcessor.excludedFolders = new Set();
         }
         
+        // Set default values
+        document.getElementById('preserveOriginal').checked = true;
+        
         this.initializeEventListeners();
         this.updateFormHints();
+        this.updateButtons();
         this.log('Application started', 'info');
     }
 
@@ -239,6 +243,19 @@ class FotoFusionApp {
 
         document.getElementById('loadSelectedPresetBtn').addEventListener('click', () => {
             this.loadSelectedStoredPreset();
+        });
+
+        // Statistics modal
+        document.getElementById('statisticsModalCloseBtn').addEventListener('click', () => {
+            this.hideModal('statisticsModal');
+        });
+
+        document.getElementById('statisticsModalOkBtn').addEventListener('click', () => {
+            this.hideModal('statisticsModal');
+        });
+
+        document.getElementById('exportStatsBtn').addEventListener('click', () => {
+            this.exportStatistics();
         });
 
         // Close modals when clicking backdrop
@@ -869,7 +886,8 @@ Keyboard Shortcuts:
             folderStructure: document.getElementById('folderStructure').value,
             dateFormat: document.getElementById('dateFormat').value,
             folderPrefix: document.getElementById('folderPrefix').value,
-            preserveOriginal: document.getElementById('preserveOriginal').checked
+            preserveOriginal: document.getElementById('preserveOriginal').checked,
+            destinationPath: this.destinationPath || null
         };
 
         try {
@@ -942,13 +960,30 @@ Keyboard Shortcuts:
             details.innerHTML = `
                 ${this.getStructureDisplayName(preset.folderStructure)} • ${preset.dateFormat}
                 ${preset.folderPrefix ? `• Prefix: ${preset.folderPrefix}` : ''}
+                ${preset.destinationPath ? `• Dest: ${preset.destinationPath}` : ''}
             `;
 
             const meta = document.createElement('div');
             meta.className = 'stored-preset-meta';
             const createdDate = new Date(preset.createdAt).toLocaleDateString();
             const lastUsed = preset.lastUsed ? new Date(preset.lastUsed).toLocaleDateString() : 'Never used';
-            meta.innerHTML = `Created: ${createdDate} • Last used: ${lastUsed}`;
+            
+            // Check if destination folder exists
+            let folderStatus = '';
+            if (preset.destinationPath) {
+                const fs = require('fs');
+                try {
+                    if (fs.existsSync(preset.destinationPath)) {
+                        folderStatus = ' • <span style="color: #27ae60;">✓ Folder exists</span>';
+                    } else {
+                        folderStatus = ' • <span style="color: #e74c3c;">✗ Folder missing</span>';
+                    }
+                } catch (error) {
+                    folderStatus = ' • <span style="color: #f39c12;">? Folder check failed</span>';
+                }
+            }
+            
+            meta.innerHTML = `Created: ${createdDate} • Last used: ${lastUsed}${folderStatus}`;
 
             info.appendChild(name);
             info.appendChild(details);
@@ -1027,8 +1062,25 @@ Keyboard Shortcuts:
         document.getElementById('folderPrefix').value = preset.folderPrefix || '';
         document.getElementById('preserveOriginal').checked = preset.preserveOriginal !== false;
         
+        // Apply destination path if it exists and is valid
+        if (preset.destinationPath) {
+            const fs = require('fs');
+            try {
+                if (fs.existsSync(preset.destinationPath)) {
+                    this.destinationPath = preset.destinationPath;
+                    document.getElementById('destPath').textContent = preset.destinationPath;
+                    this.log(`Preset destination applied: ${preset.destinationPath}`, 'info');
+                } else {
+                    this.log(`Preset destination folder no longer exists: ${preset.destinationPath}`, 'warning');
+                }
+            } catch (error) {
+                this.log(`Error checking preset destination: ${error.message}`, 'warning');
+            }
+        }
+        
         this.updateFolderPreview();
         this.updateFormHints();
+        this.updateButtons();
     }
 
     async openPresetManager() {
@@ -1037,6 +1089,300 @@ Keyboard Shortcuts:
         } catch (error) {
             this.log(`Error opening preset manager: ${error.message}`, 'error');
         }
+    }
+
+    showStatistics() {
+        console.log('showStatistics called'); // Debug log
+        
+        if (!this.photoProcessor || this.photoProcessor.photos.length === 0) {
+            this.log('No photos available for statistics. Please scan photos first.', 'error');
+            return;
+        }
+
+        console.log('Opening statistics modal'); // Debug log
+        this.showModal('statisticsModal');
+        this.renderStatistics();
+    }
+
+    async renderStatistics() {
+        console.log('renderStatistics called'); // Debug log
+        const content = document.getElementById('statisticsContent');
+        
+        if (!content) {
+            console.error('statisticsContent element not found');
+            return;
+        }
+        
+        content.innerHTML = '<div class="loading-stats">Calculating statistics...</div>';
+        
+        try {
+            // Add small delay to show loading
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            console.log('Calculating statistics for', this.photoProcessor.photos.length, 'photos'); // Debug log
+            const stats = this.photoProcessor.calculateStatistics();
+            
+            if (!stats) {
+                content.innerHTML = '<div class="loading-stats">No statistics available</div>';
+                return;
+            }
+
+            console.log('Generated statistics:', stats); // Debug log
+            content.innerHTML = this.generateStatisticsHTML(stats);
+        } catch (error) {
+            console.error('Error calculating statistics:', error);
+            content.innerHTML = '<div class="loading-stats">Error calculating statistics</div>';
+        }
+    }
+
+    generateStatisticsHTML(stats) {
+        return `
+            <div class="stats-overview">
+                <h3>📊 Collection Overview</h3>
+                <div class="stats-overview-grid">
+                    <div class="stats-highlight">
+                        <span class="stats-highlight-value">${stats.overview.totalPhotos}</span>
+                        <span class="stats-highlight-label">Total Photos</span>
+                    </div>
+                    <div class="stats-highlight">
+                        <span class="stats-highlight-value">${stats.overview.includedPhotos}</span>
+                        <span class="stats-highlight-label">Selected for Copy</span>
+                    </div>
+                    <div class="stats-highlight">
+                        <span class="stats-highlight-value">${stats.overview.totalSizeMB} MB</span>
+                        <span class="stats-highlight-label">Total Size</span>
+                    </div>
+                    <div class="stats-highlight">
+                        <span class="stats-highlight-value">${stats.overview.timeSpanDays}</span>
+                        <span class="stats-highlight-label">Days Span</span>
+                    </div>
+                </div>
+                ${stats.dateRange ? `
+                <div class="stats-date-range">
+                    <span class="stats-date-range-start">${stats.dateRange.oldest.toLocaleDateString()}</span>
+                    <span class="stats-date-range-separator">to</span>
+                    <span class="stats-date-range-end">${stats.dateRange.newest.toLocaleDateString()}</span>
+                </div>
+                ` : ''}
+            </div>
+
+            <div class="stats-container">
+                <div class="stats-section">
+                    <h4>📷 Cameras Used</h4>
+                    ${this.generateStatsBarChart(stats.cameras)}
+                </div>
+
+                <div class="stats-section">
+                    <h4>🔍 Lenses Used</h4>
+                    ${this.generateStatsBarChart(stats.lenses)}
+                </div>
+
+                <div class="stats-section">
+                    <h4>🎯 Aperture Settings</h4>
+                    ${this.generateStatsBarChart(stats.apertures)}
+                </div>
+
+                <div class="stats-section">
+                    <h4>📊 ISO Values</h4>
+                    ${this.generateStatsBarChart(stats.isoValues)}
+                </div>
+
+                <div class="stats-section">
+                    <h4>⚡ Shutter Speeds</h4>
+                    ${this.generateStatsBarChart(stats.shutterSpeeds)}
+                </div>
+
+                <div class="stats-section">
+                    <h4>📏 Focal Lengths</h4>
+                    ${this.generateStatsBarChart(stats.focalLengths)}
+                </div>
+
+                <div class="stats-section">
+                    <h4>💾 File Sizes</h4>
+                    <div class="stats-grid">
+                        <div class="stats-item">
+                            <span class="stats-label">Average:</span>
+                            <span class="stats-value">${stats.fileSizes.average} MB</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Median:</span>
+                            <span class="stats-value">${stats.fileSizes.median} MB</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Smallest:</span>
+                            <span class="stats-value">${stats.fileSizes.smallest} MB</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Largest:</span>
+                            <span class="stats-value">${stats.fileSizes.largest} MB</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-section">
+                    <h4>📅 Monthly Distribution</h4>
+                    ${stats.dateRange ? this.generateStatsBarChart(stats.dateRange.monthlyDistribution) : '<div class="stats-item">No date information available</div>'}
+                </div>
+
+                <div class="stats-section">
+                    <h4>📁 File Formats</h4>
+                    ${this.generateStatsBarChart(stats.fileFormats)}
+                </div>
+
+                <div class="stats-section">
+                    <h4>📐 Aspect Ratios</h4>
+                    ${this.generateStatsBarChart(stats.aspectRatios)}
+                </div>
+
+                <div class="stats-section">
+                    <h4>🌍 Location Data</h4>
+                    ${this.generateLocationStats(stats.locations)}
+                </div>
+            </div>
+        `;
+    }
+
+    generateStatsBarChart(statsData) {
+        if (!statsData || !statsData.items || statsData.items.length === 0) {
+            return '<div class="stats-item">No data available</div>';
+        }
+
+        return `
+            <div class="stats-bar-container">
+                ${statsData.items.map(item => `
+                    <div class="stats-bar-item">
+                        <div class="stats-bar-label" title="${item.label}">${item.label}</div>
+                        <div class="stats-bar">
+                            <div class="stats-bar-fill" style="width: ${item.barWidth}%"></div>
+                        </div>
+                        <div class="stats-bar-count">${item.count}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    generateLocationStats(locationData) {
+        if (!locationData) {
+            return '<div class="stats-item">No location data available</div>';
+        }
+
+        let html = `
+            <div class="stats-grid">
+                <div class="stats-item">
+                    <span class="stats-label">With GPS:</span>
+                    <span class="stats-value">${locationData.totalWithLocation}</span>
+                </div>
+                <div class="stats-item">
+                    <span class="stats-label">Without GPS:</span>
+                    <span class="stats-value">${locationData.totalWithoutLocation}</span>
+                </div>
+                <div class="stats-item">
+                    <span class="stats-label">GPS Coverage:</span>
+                    <span class="stats-value">${locationData.percentageWithLocation}%</span>
+                </div>
+            </div>
+        `;
+
+        if (locationData.topLocations.length > 0) {
+            html += '<div style="margin-top: 12px;"><strong>Top Locations:</strong></div>';
+            locationData.topLocations.forEach(([name, data]) => {
+                html += `
+                    <div class="stats-location-item">
+                        <div class="stats-location-name">${name} (${data.count} photos)</div>
+                        <div class="stats-location-coords">${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}</div>
+                    </div>
+                `;
+            });
+        }
+
+        return html;
+    }
+
+    async exportStatistics() {
+        if (!this.photoProcessor || this.photoProcessor.photos.length === 0) {
+            this.log('No statistics to export', 'error');
+            return;
+        }
+
+        try {
+            const stats = this.photoProcessor.calculateStatistics();
+            const report = this.generateStatisticsReport(stats);
+            
+            const result = await ipcRenderer.invoke('save-report', report, this.destinationPath || process.cwd());
+            if (result) {
+                this.log(`Statistics exported to: ${result}`, 'success');
+            }
+        } catch (error) {
+            this.log(`Error exporting statistics: ${error.message}`, 'error');
+        }
+    }
+
+    generateStatisticsReport(stats) {
+        const date = new Date().toLocaleString();
+        
+        return `# Photo Collection Statistics Report
+Generated: ${date}
+
+## Overview
+- **Total Photos:** ${stats.overview.totalPhotos}
+- **Selected for Copy:** ${stats.overview.includedPhotos}
+- **Excluded:** ${stats.overview.excludedPhotos}
+- **Total Size:** ${stats.overview.totalSizeMB} MB
+- **Average Size:** ${stats.overview.avgSizeMB} MB
+- **Time Span:** ${stats.overview.timeSpanDays} days
+${stats.dateRange ? `- **Date Range:** ${stats.dateRange.oldest.toLocaleDateString()} to ${stats.dateRange.newest.toLocaleDateString()}` : ''}
+
+## Camera Equipment
+
+### Cameras Used
+${stats.cameras.items.map(item => `- **${item.label}:** ${item.count} photos (${item.percentage}%)`).join('\n')}
+
+### Lenses Used
+${stats.lenses.items.map(item => `- **${item.label}:** ${item.count} photos (${item.percentage}%)`).join('\n')}
+
+## Camera Settings
+
+### Aperture Settings
+${stats.apertures.items.map(item => `- **${item.label}:** ${item.count} photos (${item.percentage}%)`).join('\n')}
+
+### ISO Values
+${stats.isoValues.items.map(item => `- **${item.label}:** ${item.count} photos (${item.percentage}%)`).join('\n')}
+
+### Shutter Speeds
+${stats.shutterSpeeds.items.map(item => `- **${item.label}:** ${item.count} photos (${item.percentage}%)`).join('\n')}
+
+### Focal Lengths
+${stats.focalLengths.items.map(item => `- **${item.label}:** ${item.count} photos (${item.percentage}%)`).join('\n')}
+
+## File Information
+
+### File Sizes
+- **Average:** ${stats.fileSizes.average} MB
+- **Median:** ${stats.fileSizes.median} MB
+- **Smallest:** ${stats.fileSizes.smallest} MB
+- **Largest:** ${stats.fileSizes.largest} MB
+
+### File Formats
+${stats.fileFormats.items.map(item => `- **${item.label}:** ${item.count} files (${item.percentage}%)`).join('\n')}
+
+### Aspect Ratios
+${stats.aspectRatios.items.map(item => `- **${item.label}:** ${item.count} photos (${item.percentage}%)`).join('\n')}
+
+## Location Data
+- **Photos with GPS:** ${stats.locations.totalWithLocation}
+- **Photos without GPS:** ${stats.locations.totalWithoutLocation}
+- **GPS Coverage:** ${stats.locations.percentageWithLocation}%
+
+${stats.locations.topLocations.length > 0 ? `### Top Locations
+${stats.locations.topLocations.map(([name, data]) => `- **${name}:** ${data.count} photos (${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)})`).join('\n')}` : ''}
+
+${stats.dateRange && stats.dateRange.monthlyDistribution ? `## Monthly Distribution
+${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${item.count} photos (${item.percentage}%)`).join('\n')}` : ''}
+
+---
+*Report generated by FotoFusion v1.0.0*
+        `;
     }
 
     showCompletionSummary(results) {

@@ -217,6 +217,243 @@ class PhotoProcessor {
         if (!this.excludedFolders) this.excludedFolders = new Set();
     }
 
+    // Statistics calculation methods
+    calculateStatistics() {
+        if (this.photos.length === 0) {
+            return null;
+        }
+
+        const stats = {
+            overview: this.calculateOverviewStats(),
+            cameras: this.calculateCameraStats(),
+            lenses: this.calculateLensStats(),
+            apertures: this.calculateApertureStats(),
+            isoValues: this.calculateISOStats(),
+            shutterSpeeds: this.calculateShutterSpeedStats(),
+            focalLengths: this.calculateFocalLengthStats(),
+            fileSizes: this.calculateFileSizeStats(),
+            dateRange: this.calculateDateRangeStats(),
+            locations: this.calculateLocationStats(),
+            fileFormats: this.calculateFileFormatStats(),
+            aspectRatios: this.calculateAspectRatioStats()
+        };
+
+        return stats;
+    }
+
+    calculateOverviewStats() {
+        const totalPhotos = this.photos.length;
+        const includedPhotos = this.getIncludedPhotos().length;
+        const excludedPhotos = totalPhotos - includedPhotos;
+        
+        const totalSize = this.photos.reduce((sum, photo) => sum + photo.size, 0);
+        const avgSize = totalSize / totalPhotos;
+        
+        const dates = this.photos.map(p => new Date(p.metadata.dateTime)).filter(d => !isNaN(d));
+        const oldestPhoto = dates.length > 0 ? new Date(Math.min(...dates)) : null;
+        const newestPhoto = dates.length > 0 ? new Date(Math.max(...dates)) : null;
+        
+        return {
+            totalPhotos,
+            includedPhotos,
+            excludedPhotos,
+            totalSizeMB: Math.round(totalSize / (1024 * 1024)),
+            avgSizeMB: Math.round(avgSize / (1024 * 1024) * 100) / 100,
+            oldestPhoto,
+            newestPhoto,
+            timeSpanDays: oldestPhoto && newestPhoto ? Math.ceil((newestPhoto - oldestPhoto) / (1000 * 60 * 60 * 24)) : 0
+        };
+    }
+
+    calculateCameraStats() {
+        const cameras = {};
+        this.photos.forEach(photo => {
+            const camera = photo.metadata.camera || 'Unknown';
+            cameras[camera] = (cameras[camera] || 0) + 1;
+        });
+        
+        return this.sortAndLimitStats(cameras, 10);
+    }
+
+    calculateLensStats() {
+        const lenses = {};
+        this.photos.forEach(photo => {
+            const lens = photo.metadata.lens || 'Unknown';
+            lenses[lens] = (lenses[lens] || 0) + 1;
+        });
+        
+        return this.sortAndLimitStats(lenses, 10);
+    }
+
+    calculateApertureStats() {
+        const apertures = {};
+        this.photos.forEach(photo => {
+            const aperture = photo.metadata.aperture || 'Unknown';
+            const fStop = aperture.toString().startsWith('f/') ? aperture : `f/${aperture}`;
+            apertures[fStop] = (apertures[fStop] || 0) + 1;
+        });
+        
+        return this.sortAndLimitStats(apertures, 8);
+    }
+
+    calculateISOStats() {
+        const isoValues = {};
+        this.photos.forEach(photo => {
+            const iso = photo.metadata.iso || 'Unknown';
+            const isoLabel = iso === 'Unknown' ? iso : `ISO ${iso}`;
+            isoValues[isoLabel] = (isoValues[isoLabel] || 0) + 1;
+        });
+        
+        return this.sortAndLimitStats(isoValues, 8);
+    }
+
+    calculateShutterSpeedStats() {
+        const shutterSpeeds = {};
+        this.photos.forEach(photo => {
+            const shutter = photo.metadata.shutterSpeed || 'Unknown';
+            shutterSpeeds[shutter] = (shutterSpeeds[shutter] || 0) + 1;
+        });
+        
+        return this.sortAndLimitStats(shutterSpeeds, 8);
+    }
+
+    calculateFocalLengthStats() {
+        const focalLengths = {};
+        this.photos.forEach(photo => {
+            let focal = photo.metadata.focalLength || 'Unknown';
+            if (focal !== 'Unknown' && !focal.toString().includes('mm')) {
+                focal = `${focal}mm`;
+            }
+            focalLengths[focal] = (focalLengths[focal] || 0) + 1;
+        });
+        
+        return this.sortAndLimitStats(focalLengths, 8);
+    }
+
+    calculateFileSizeStats() {
+        const sizes = this.photos.map(p => p.size).sort((a, b) => a - b);
+        const totalSize = sizes.reduce((sum, size) => sum + size, 0);
+        const avgSize = totalSize / sizes.length;
+        
+        return {
+            total: Math.round(totalSize / (1024 * 1024)),
+            average: Math.round(avgSize / (1024 * 1024) * 100) / 100,
+            smallest: Math.round(sizes[0] / (1024 * 1024) * 100) / 100,
+            largest: Math.round(sizes[sizes.length - 1] / (1024 * 1024) * 100) / 100,
+            median: Math.round(sizes[Math.floor(sizes.length / 2)] / (1024 * 1024) * 100) / 100
+        };
+    }
+
+    calculateDateRangeStats() {
+        const dates = this.photos.map(p => new Date(p.metadata.dateTime)).filter(d => !isNaN(d));
+        if (dates.length === 0) return null;
+        
+        const sortedDates = dates.sort((a, b) => a - b);
+        const oldest = sortedDates[0];
+        const newest = sortedDates[sortedDates.length - 1];
+        
+        const yearMonth = {};
+        dates.forEach(date => {
+            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            yearMonth[key] = (yearMonth[key] || 0) + 1;
+        });
+        
+        return {
+            oldest,
+            newest,
+            spanDays: Math.ceil((newest - oldest) / (1000 * 60 * 60 * 24)),
+            monthlyDistribution: this.sortAndLimitStats(yearMonth, 12)
+        };
+    }
+
+    calculateLocationStats() {
+        const locations = {};
+        let photosWithLocation = 0;
+        
+        this.photos.forEach(photo => {
+            const gps = photo.metadata.gps;
+            if (gps && gps.latitude && gps.longitude) {
+                photosWithLocation++;
+                const locationKey = `${gps.latitude.toFixed(3)}, ${gps.longitude.toFixed(3)}`;
+                const locationName = gps.location || locationKey;
+                
+                if (!locations[locationName]) {
+                    locations[locationName] = {
+                        count: 0,
+                        latitude: gps.latitude,
+                        longitude: gps.longitude
+                    };
+                }
+                locations[locationName].count++;
+            }
+        });
+        
+        const sortedLocations = Object.entries(locations)
+            .sort(([,a], [,b]) => b.count - a.count)
+            .slice(0, 10);
+        
+        return {
+            totalWithLocation: photosWithLocation,
+            totalWithoutLocation: this.photos.length - photosWithLocation,
+            percentageWithLocation: Math.round((photosWithLocation / this.photos.length) * 100),
+            topLocations: sortedLocations
+        };
+    }
+
+    calculateFileFormatStats() {
+        const formats = {};
+        this.photos.forEach(photo => {
+            const ext = path.extname(photo.filename).toLowerCase();
+            formats[ext] = (formats[ext] || 0) + 1;
+        });
+        
+        return this.sortAndLimitStats(formats, 6);
+    }
+
+    calculateAspectRatioStats() {
+        const ratios = {};
+        this.photos.forEach(photo => {
+            const width = photo.metadata.width || 0;
+            const height = photo.metadata.height || 0;
+            
+            if (width && height) {
+                const gcd = this.calculateGCD(width, height);
+                const ratioW = width / gcd;
+                const ratioH = height / gcd;
+                const ratioKey = `${ratioW}:${ratioH}`;
+                ratios[ratioKey] = (ratios[ratioKey] || 0) + 1;
+            } else {
+                ratios['Unknown'] = (ratios['Unknown'] || 0) + 1;
+            }
+        });
+        
+        return this.sortAndLimitStats(ratios, 6);
+    }
+
+    sortAndLimitStats(statsObject, limit = 10) {
+        const sortedEntries = Object.entries(statsObject)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, limit);
+        
+        const total = Object.values(statsObject).reduce((sum, count) => sum + count, 0);
+        const maxCount = Math.max(...Object.values(statsObject));
+        
+        return {
+            items: sortedEntries.map(([label, count]) => ({
+                label,
+                count,
+                percentage: Math.round((count / total) * 100),
+                barWidth: Math.round((count / maxCount) * 100)
+            })),
+            total,
+            maxCount
+        };
+    }
+
+    calculateGCD(a, b) {
+        return b === 0 ? a : this.calculateGCD(b, a % b);
+    }
+
     async extractMetadata(filePath) {
         try {
             const metadata = await exifr.parse(filePath, {
