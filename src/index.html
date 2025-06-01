@@ -82,11 +82,14 @@
                 <div class="form-group">
                     <label>Folder Structure:</label>
                     <select id="folderStructure">
-                        <option value="date">By Date</option>
+                        <option value="date">By Date (hierarchical)</option>
+                        <option value="date-flat">By Date (only dates)</option>
                         <option value="camera">By Camera</option>
                         <option value="lens">By Lens</option>
-                        <option value="date-camera">Date > Camera</option>
-                        <option value="camera-date">Camera > Date</option>
+                        <option value="date-camera">Date > Camera (hierarchical)</option>
+                        <option value="date-flat-camera">Date > Camera (flat dates)</option>
+                        <option value="camera-date">Camera > Date (hierarchical)</option>
+                        <option value="camera-date-flat">Camera > Date (flat dates)</option>
                     </select>
                 </div>
 
@@ -103,6 +106,7 @@
                         <option value="Month YYYY">Month Year (January 2024)</option>
                         <option value="YYYY/Month">Year/Month Name (2024/January)</option>
                     </select>
+                    <div class="form-hint" id="dateFormatHint"></div>
                 </div>
 
                 <div class="form-group">

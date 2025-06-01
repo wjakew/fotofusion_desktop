@@ -80,13 +80,41 @@ class PhotoProcessor {
     }
 
     toggleFolderExclusion(folderPath) {
-        if (this.excludedFolders.has(folderPath)) {
-            this.excludedFolders.delete(folderPath);
+        if (!folderPath) {
+            console.error('toggleFolderExclusion called with empty folderPath');
+            return false;
+        }
+        
+        // Normalize path separators to ensure consistency
+        const normalizedPath = folderPath.split(path.sep).join('/');
+        
+        if (!this.folderStructure[folderPath] && !this.folderStructure[normalizedPath]) {
+            console.error(`toggleFolderExclusion: folder "${folderPath}" not found in structure`);
+            console.log('Available folders:', Object.keys(this.folderStructure));
+            return false;
+        }
+        
+        // Use the path that actually exists in the structure
+        const actualPath = this.folderStructure[folderPath] ? folderPath : normalizedPath;
+        
+        if (this.excludedFolders.has(actualPath)) {
+            this.excludedFolders.delete(actualPath);
+            console.log(`Folder included: ${actualPath}`);
             return false; // Not excluded
         } else {
-            this.excludedFolders.add(folderPath);
+            this.excludedFolders.add(actualPath);
+            console.log(`Folder excluded: ${actualPath}`);
+            console.log('Current excluded folders:', Array.from(this.excludedFolders));
             return true; // Excluded
         }
+    }
+
+    isFolderExcluded(folderPath) {
+        if (!folderPath) return false;
+        
+        // Check both original path and normalized path
+        const normalizedPath = folderPath.split(path.sep).join('/');
+        return this.excludedFolders.has(folderPath) || this.excludedFolders.has(normalizedPath);
     }
 
     isPhotoExcluded(photoId) {
@@ -143,6 +171,39 @@ class PhotoProcessor {
             totalExcluded: totalExcluded,
             excludedFolders: this.excludedFolders.size
         };
+    }
+
+    // Debug method to check exclusion state
+    debugExclusionState() {
+        console.log('=== Exclusion State Debug ===');
+        console.log('Excluded Photos:', Array.from(this.excludedPhotos));
+        console.log('Excluded Folders:', Array.from(this.excludedFolders));
+        console.log('Total Photos:', this.photos.length);
+        console.log('Folder Structure Keys:', Object.keys(this.folderStructure));
+        
+        const stats = this.getExclusionStats();
+        console.log('Exclusion Stats:', stats);
+        console.log('=============================');
+    }
+
+    // Verify that folder exclusions are properly tracked
+    validateExclusions() {
+        // Ensure excluded folders actually exist in the structure
+        for (const excludedFolder of this.excludedFolders) {
+            if (!this.folderStructure[excludedFolder]) {
+                console.warn(`Excluded folder "${excludedFolder}" not found in current structure`);
+                this.excludedFolders.delete(excludedFolder);
+            }
+        }
+        
+        // Clean up excluded photos that no longer exist
+        const currentPhotoIds = new Set(this.photos.map(p => p.id));
+        for (const excludedPhotoId of this.excludedPhotos) {
+            if (!currentPhotoIds.has(excludedPhotoId)) {
+                console.warn(`Excluded photo "${excludedPhotoId}" not found in current photos`);
+                this.excludedPhotos.delete(excludedPhotoId);
+            }
+        }
     }
 
     clearExclusions() {
@@ -250,6 +311,11 @@ class PhotoProcessor {
 
     generateFolderStructure(structureType, prefix = '', dateFormat = 'YYYY/MM/DD') {
         this.initializeExclusions();
+        
+        // Store current exclusions before regenerating structure
+        const currentExcludedFolders = new Set(this.excludedFolders);
+        
+        // Generate new folder structure
         this.folderStructure = {};
         
         for (const photo of this.photos) {
@@ -261,6 +327,12 @@ class PhotoProcessor {
             
             this.folderStructure[folderPath].push(photo);
         }
+        
+        // Validate and clean up exclusions after structure regeneration
+        this.validateExclusions();
+        
+        console.log(`Generated folder structure with ${Object.keys(this.folderStructure).length} folders`);
+        console.log(`Preserved ${this.excludedFolders.size} excluded folders`);
         
         return this.folderStructure;
     }
@@ -276,6 +348,9 @@ class PhotoProcessor {
             case 'date':
                 folderPath = this.formatDateFolder(date, dateFormat);
                 break;
+            case 'date-flat':
+                folderPath = this.formatDateFolderFlat(date, dateFormat);
+                break;
             case 'camera':
                 folderPath = camera;
                 break;
@@ -285,8 +360,14 @@ class PhotoProcessor {
             case 'date-camera':
                 folderPath = path.join(this.formatDateFolder(date, dateFormat), camera);
                 break;
+            case 'date-flat-camera':
+                folderPath = path.join(this.formatDateFolderFlat(date, dateFormat), camera);
+                break;
             case 'camera-date':
                 folderPath = path.join(camera, this.formatDateFolder(date, dateFormat));
+                break;
+            case 'camera-date-flat':
+                folderPath = path.join(camera, this.formatDateFolderFlat(date, dateFormat));
                 break;
             default:
                 folderPath = this.formatDateFolder(date, dateFormat);
@@ -299,6 +380,38 @@ class PhotoProcessor {
         }
         
         return folderPath;
+    }
+
+    formatDateFolderFlat(date, dateFormat) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const monthNames = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+        const monthName = monthNames[date.getMonth()];
+        
+        switch (dateFormat) {
+            case 'YYYY/MM/DD':
+            case 'YYYY-MM-DD':
+                return `${year}-${month}-${day}`;
+            case 'YYYY/MM':
+            case 'YYYY-MM':
+                return `${year}-${month}`;
+            case 'YYYY':
+                return String(year);
+            case 'DD-MM-YYYY':
+                return `${day}-${month}-${year}`;
+            case 'MM-DD-YYYY':
+                return `${month}-${day}-${year}`;
+            case 'Month YYYY':
+                return `${monthName} ${year}`;
+            case 'YYYY/Month':
+                return `${year}-${monthName}`;
+            default:
+                return `${year}-${month}-${day}`;
+        }
     }
 
     formatDateFolder(date, dateFormat) {
@@ -362,27 +475,46 @@ class PhotoProcessor {
 
         // Create folder structure only for included photos
         const includedFolderStructure = {};
+        console.log('=== PROCESSING FOLDER EXCLUSIONS ===');
+        
         for (const [folderPath, photos] of Object.entries(this.folderStructure)) {
-            if (this.excludedFolders.has(folderPath)) {
-                continue; // Skip excluded folders entirely
+            const normalizedPath = folderPath.split(path.sep).join('/');
+            const isExcluded = this.excludedFolders.has(folderPath) || this.excludedFolders.has(normalizedPath);
+            
+            console.log(`Checking folder: "${folderPath}"`);
+            console.log(`  Normalized: "${normalizedPath}"`);
+            console.log(`  Is excluded: ${isExcluded}`);
+            
+            // Skip entirely excluded folders
+            if (isExcluded) {
+                console.log(`  -> SKIPPING excluded folder: ${folderPath}`);
+                continue;
             }
             
+            // Filter out individually excluded photos from this folder
             const includedPhotosInFolder = photos.filter(photo => 
                 !this.excludedPhotos.has(photo.id)
             );
             
+            // Only include folder if it has photos to copy
             if (includedPhotosInFolder.length > 0) {
                 includedFolderStructure[folderPath] = includedPhotosInFolder;
+                console.log(`  -> INCLUDING folder: ${folderPath} with ${includedPhotosInFolder.length} photos`);
+            } else {
+                console.log(`  -> SKIPPING empty folder: ${folderPath}`);
             }
         }
 
         results.foldersCopied = Object.keys(includedFolderStructure).length;
+        console.log(`Total folders to copy: ${results.foldersCopied}`);
+        console.log(`Excluded folders: ${Array.from(this.excludedFolders)}`);
 
         for (const [folderPath, photos] of Object.entries(includedFolderStructure)) {
             const targetFolder = path.join(destinationRoot, folderPath);
             
             try {
                 await fs.mkdir(targetFolder, { recursive: true });
+                console.log(`Created folder: ${targetFolder}`);
                 
                 for (const photo of photos) {
                     try {

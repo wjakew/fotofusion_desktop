@@ -17,6 +17,7 @@ class FotoFusionApp {
         }
         
         this.initializeEventListeners();
+        this.updateFormHints();
         this.log('Application started', 'info');
     }
 
@@ -62,10 +63,12 @@ class FotoFusionApp {
         // Structure change
         document.getElementById('folderStructure').addEventListener('change', () => {
             this.updateFolderPreview();
+            this.updateFormHints();
         });
 
         document.getElementById('dateFormat').addEventListener('change', () => {
             this.updateFolderPreview();
+            this.updateFormHints();
         });
 
         document.getElementById('folderPrefix').addEventListener('input', () => {
@@ -366,11 +369,14 @@ class FotoFusionApp {
 
     getStructureDisplayName(value) {
         const options = {
-            'date': 'By Date',
+            'date': 'By Date (hierarchical)',
+            'date-flat': 'By Date (only dates)',
             'camera': 'By Camera',
             'lens': 'By Lens',
-            'date-camera': 'Date > Camera',
-            'camera-date': 'Camera > Date'
+            'date-camera': 'Date > Camera (hierarchical)',
+            'date-flat-camera': 'Date > Camera (flat dates)',
+            'camera-date': 'Camera > Date (hierarchical)',
+            'camera-date-flat': 'Camera > Date (flat dates)'
         };
         return options[value] || value;
     }
@@ -463,8 +469,21 @@ Keyboard Shortcuts:
 
             this.log(`Starting copy with structure: ${structureType}, date format: ${dateFormat}`, 'info');
             
-            // Generate folder structure
-            this.photoProcessor.generateFolderStructure(structureType, prefix, dateFormat);
+            // IMPORTANT: Don't regenerate folder structure here - it would reset exclusions!
+            // The structure should already exist from the preview
+            if (Object.keys(this.photoProcessor.folderStructure).length === 0) {
+                this.log('ERROR: No folder structure found! This should not happen.', 'error');
+                this.photoProcessor.generateFolderStructure(structureType, prefix, dateFormat);
+            }
+            
+            // Debug exclusion state before copying
+            console.log('=== PRE-COPY EXCLUSION STATE ===');
+            this.photoProcessor.debugExclusionState();
+            
+            // Validate exclusions are still valid
+            this.photoProcessor.validateExclusions();
+            
+            console.log('=== STARTING COPY PROCESS ===');
             
             // Copy photos
             const results = await this.photoProcessor.copyPhotos(
@@ -548,6 +567,79 @@ Keyboard Shortcuts:
         });
         
         this.updateExclusionStats();
+    }
+
+    updateFormHints() {
+        const structureType = document.getElementById('folderStructure').value;
+        const dateFormat = document.getElementById('dateFormat').value;
+        const hintElement = document.getElementById('dateFormatHint');
+        
+        if (!hintElement) return;
+        
+        let hint = '';
+        
+        if (structureType === 'date') {
+            // Hierarchical date structure
+            switch (dateFormat) {
+                case 'YYYY/MM/DD':
+                    hint = 'Creates: 2024 → 2024-01 → 2024-01-15';
+                    break;
+                case 'YYYY-MM-DD':
+                    hint = 'Creates: 2024-01-15 (single folder)';
+                    break;
+                case 'YYYY/MM':
+                    hint = 'Creates: 2024 → 2024-01';
+                    break;
+                case 'YYYY':
+                    hint = 'Creates: 2024 (year folders only)';
+                    break;
+                default:
+                    hint = 'Creates nested folder structure by date';
+            }
+        } else if (structureType === 'date-flat') {
+            // Flat date structure
+            switch (dateFormat) {
+                case 'YYYY/MM/DD':
+                case 'YYYY-MM-DD':
+                    hint = 'Creates: 2024-01-15 (flat date folders)';
+                    break;
+                case 'YYYY/MM':
+                case 'YYYY-MM':
+                    hint = 'Creates: 2024-01 (flat month folders)';
+                    break;
+                case 'YYYY':
+                    hint = 'Creates: 2024 (flat year folders)';
+                    break;
+                case 'DD-MM-YYYY':
+                    hint = 'Creates: 15-01-2024 (flat date folders)';
+                    break;
+                case 'MM-DD-YYYY':
+                    hint = 'Creates: 01-15-2024 (flat date folders)';
+                    break;
+                case 'Month YYYY':
+                    hint = 'Creates: January 2024 (flat month folders)';
+                    break;
+                case 'YYYY/Month':
+                    hint = 'Creates: 2024-January (flat month folders)';
+                    break;
+                default:
+                    hint = 'Creates single-level date folders';
+            }
+        } else if (structureType === 'date-camera') {
+            hint = 'Creates nested: Year → Month → Day → Camera';
+        } else if (structureType === 'date-flat-camera') {
+            hint = 'Creates flat: Date → Camera';
+        } else if (structureType === 'camera-date') {
+            hint = 'Creates nested: Camera → Year → Month';
+        } else if (structureType === 'camera-date-flat') {
+            hint = 'Creates flat: Camera → Date';
+        } else if (structureType.includes('date')) {
+            hint = 'Date folders combined with camera/lens organization';
+        } else {
+            hint = '';
+        }
+        
+        hintElement.textContent = hint;
     }
 
     updateExclusionStats() {
@@ -761,6 +853,7 @@ Keyboard Shortcuts:
         
         this.setProgress(0, 'Ready to start');
         this.updateButtons();
+        this.updateFormHints();
         this.log('Project cleared - Ready for new organization', 'info');
     }
 
@@ -935,6 +1028,7 @@ Keyboard Shortcuts:
         document.getElementById('preserveOriginal').checked = preset.preserveOriginal !== false;
         
         this.updateFolderPreview();
+        this.updateFormHints();
     }
 
     async openPresetManager() {

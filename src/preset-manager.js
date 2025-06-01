@@ -323,11 +323,14 @@ class PresetManager {
 
     getStructureDisplayName(value) {
         const options = {
-            'date': 'By Date',
+            'date': 'By Date (hierarchical)',
+            'date-flat': 'By Date (only dates)',
             'camera': 'By Camera',
             'lens': 'By Lens',
-            'date-camera': 'Date > Camera',
-            'camera-date': 'Camera > Date'
+            'date-camera': 'Date > Camera (hierarchical)',
+            'date-flat-camera': 'Date > Camera (flat dates)',
+            'camera-date': 'Camera > Date (hierarchical)',
+            'camera-date-flat': 'Camera > Date (flat dates)'
         };
         return options[value] || value;
     }
