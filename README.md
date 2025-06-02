@@ -4,6 +4,8 @@
 
 FotoFusion is a professional photo organization tool that helps photographers efficiently manage and organize their photo collections. It provides a user-friendly interface for organizing photos based on various criteria such as date, camera, and lens information.
 
+![src1](/readme_resources/src1.png)
+
 ## Features
 
 - **Flexible Organization Options**
@@ -33,6 +35,8 @@ FotoFusion is a professional photo organization tool that helps photographers ef
   - Real-time progress tracking
   - Detailed operation logs
   - Customizable folder structure preview
+
+![src2](/readme_resources/src2.png)
 
 ## Installation
 

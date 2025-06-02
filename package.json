@@ -32,15 +32,15 @@
           "arch": ["x64", "arm64"]
         }
       ],
-      "icon": "assets/icon.icns"
+      "icon": "assets/logo.icns"
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "assets/logo.ico"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "assets/icon.png"
+      "icon": "assets/logo.png"
     }
   }
 }
