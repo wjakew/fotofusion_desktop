@@ -258,6 +258,44 @@ select {
     -moz-appearance: none;
 }
 
+/* Modern styling for datetime-local inputs */
+input[type="datetime-local"] {
+    width: 100%;
+    padding: 8px 12px;
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 14px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    transition: all 0.2s;
+    cursor: pointer;
+    position: relative;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+input[type="datetime-local"]:focus,
+input[type="datetime-local"]:hover {
+    background: #2a2a2a;
+    border-color: #666;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Customize the calendar icon color */
+::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.7;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
 select {
     background-image: url('data:image/svg+xml;utf8,<svg fill="%23fff" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
     background-repeat: no-repeat;
@@ -283,6 +321,44 @@ input[type="checkbox"] {
     margin-top: 4px;
     font-style: italic;
     line-height: 1.3;
+}
+
+/* Time range form group styling */
+.section .form-group.datetime-picker {
+    margin-bottom: 16px;
+    background: rgba(34, 34, 34, 0.4);
+    border-radius: 6px;
+    padding: 12px;
+    border-left: 3px solid #2c3e50;
+    transition: all 0.2s;
+}
+
+.section .form-group.datetime-picker:hover {
+    background: rgba(34, 34, 34, 0.6);
+    border-left: 3px solid #3498db;
+}
+
+.section .form-group.datetime-picker label {
+    color: #ddd;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.section .form-group.datetime-picker .form-hint {
+    color: #888;
+}
+
+.datetime-icon {
+    display: inline-block;
+    margin-right: 6px;
+    font-size: 16px;
+    opacity: 0.9;
+    transition: transform 0.2s ease;
+}
+
+.form-group.datetime-picker:hover .datetime-icon {
+    transform: scale(1.2);
+    opacity: 1;
 }
 
 /* Folder Path */
@@ -1041,10 +1117,134 @@ input[type="checkbox"] {
     text-align: center;
 }
 
+/* Enhanced Completion Modal Styling */
+.summary-section {
+    background: rgba(42, 42, 42, 0.6);
+    border-radius: 8px;
+    border: 1px solid #444;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.summary-section h4 {
+    font-size: 16px;
+    margin: 0 0 16px 0;
+    color: #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.summary-section h4::before {
+    margin-right: 8px;
+    opacity: 0.8;
+}
+
+.summary-section:nth-child(1) h4::before {
+    content: '✅';
+}
+
+.summary-section:nth-child(2) h4::before {
+    content: '⏱️';
+}
+
+.summary-section:nth-child(3) h4::before {
+    content: '📅';
+}
+
+.stats-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.stats-row .stats-item {
+    flex: 1;
+    text-align: center;
+    background: rgba(26, 26, 26, 0.6);
+    border-radius: 6px;
+    padding: 12px;
+    transition: all 0.2s;
+}
+
+.stats-row .stats-item:hover {
+    background: rgba(30, 30, 30, 0.8);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.stats-row .stats-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.stats-row .stats-label {
+    font-size: 12px;
+    color: #aaa;
+    display: block;
+}
+
+.stats-detail {
+    background: rgba(26, 26, 26, 0.4);
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    color: #bbb;
+    font-size: 13px;
+}
+
+.stats-detail:last-child {
+    margin-bottom: 0;
+}
+
+/* Highlight the copy summary section */
+.summary-section:first-child {
+    border-left: 3px solid #27ae60;
+}
+
+/* Highlight the performance section */
+.summary-section:nth-child(2) {
+    border-left: 3px solid #3498db;
+}
+
+/* Highlight the date filter section if present */
+.summary-section:nth-child(3) {
+    border-left: 3px solid #f39c12;
+}
+
+/* Better styling for verification status */
+.verification-status {
+    margin-top: 20px;
+    border-top: 1px solid #444;
+    padding-top: 20px;
+}
+
+.verifying {
+    padding: 16px;
+    text-align: center;
+    background: rgba(26, 26, 26, 0.6);
+    border-radius: 6px;
+    color: #3498db;
+    font-style: italic;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
 .verification-progress {
     padding: 15px;
-    background-color: #f0f8ff;
-    border-radius: 4px;
+    background-color: rgba(26, 26, 26, 0.6);
+    border-radius: 8px;
     text-align: center;
     margin: 10px 0;
 }
@@ -1052,36 +1252,51 @@ input[type="checkbox"] {
 .verification-results h4 {
     text-align: center;
     margin-bottom: 15px;
+    font-size: 18px;
+    color: #fff;
+    padding: 10px;
+    border-radius: 6px;
+    background: rgba(42, 42, 42, 0.6);
 }
 
 .verification-errors {
     margin-top: 20px;
-    padding: 10px;
-    background-color: #fff8f8;
-    border-radius: 4px;
+    padding: 16px;
+    background: rgba(231, 76, 60, 0.1);
+    border-radius: 8px;
     border-left: 3px solid #e74c3c;
 }
 
+.verification-errors h5 {
+    color: #e74c3c;
+    margin-top: 0;
+    margin-bottom: 12px;
+}
+
 .verification-error {
-    padding: 10px;
-    background-color: #fff8f8;
-    border-radius: 4px;
+    padding: 16px;
+    background: rgba(231, 76, 60, 0.1);
+    border-radius: 8px;
     border-left: 3px solid #e74c3c;
     color: #e74c3c;
+    margin-bottom: 16px;
 }
 
 .error-list {
     margin: 10px 0;
     padding-left: 20px;
+    color: #ddd;
 }
 
 .error-list li {
-    margin-bottom: 5px;
+    margin-bottom: 8px;
+    line-height: 1.4;
 }
 
 .error-file {
     font-weight: bold;
     margin-right: 10px;
+    color: #fff;
 }
 
 .error-message {
@@ -1091,4 +1306,88 @@ input[type="checkbox"] {
 .stats-item.warning .stats-label,
 .stats-item.warning .stats-value {
     color: #e74c3c;
+}
+
+/* Enhanced Completion Modal Header */
+.completion-header {
+    background: linear-gradient(90deg, rgba(39, 174, 96, 0.4), rgba(39, 174, 96, 0.1));
+    border-bottom: 1px solid rgba(39, 174, 96, 0.3);
+}
+
+.completion-header h3 {
+    display: flex;
+    align-items: center;
+    color: #fff;
+}
+
+.completion-checkmark {
+    background: #27ae60;
+    color: #fff;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    font-size: 14px;
+    animation: check-appear 0.5s ease-out;
+}
+
+@keyframes check-appear {
+    0% { 
+        transform: scale(0);
+        opacity: 0;
+    }
+    50% { 
+        transform: scale(1.4);
+    }
+    100% { 
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Modal content animation */
+#completionModal .modal-content {
+    animation: slide-up 0.4s ease-out;
+}
+
+@keyframes slide-up {
+    0% { 
+        transform: translateY(30px) scale(0.95);
+        opacity: 0;
+    }
+    100% { 
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+/* Special styling for completion modal verify button */
+#verifyFilesBtn {
+    background: #3498db;
+    border-color: #2980b9;
+    position: relative;
+    overflow: hidden;
+}
+
+#verifyFilesBtn:hover {
+    background: #2980b9;
+}
+
+#verifyFilesBtn::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: rgba(255, 255, 255, 0.1);
+    transform: rotate(30deg);
+    transition: transform 0.3s ease-out;
+}
+
+#verifyFilesBtn:hover::after {
+    transform: rotate(30deg) translate(10%, 10%);
 }

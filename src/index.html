@@ -97,6 +97,20 @@
             </div>
 
             <div class="section">
+                <h3>Time Range (Optional)</h3>
+                <div class="form-group datetime-picker">
+                    <label><span class="datetime-icon">📅</span> Start Date & Time:</label>
+                    <input type="datetime-local" id="startDateTime">
+                    <div class="form-hint">Leave empty to include all photos from the beginning</div>
+                </div>
+                <div class="form-group datetime-picker">
+                    <label><span class="datetime-icon">⏱️</span> End Date & Time:</label>
+                    <input type="datetime-local" id="endDateTime">
+                    <div class="form-hint">Leave empty to include all photos until the end</div>
+                </div>
+            </div>
+
+            <div class="section">
                 <h3>Organization Options</h3>
                 <div class="form-group">
                     <label>Folder Structure:</label>
@@ -233,7 +247,7 @@
             <div class="modal-body">
                 <div class="about-content">
                     <img src="../assets/logo.png" alt="FotoFusion Logo" style="width: 100px; height: 100px;">
-                    <h4>FotoFusion v1.0.0</h4>
+                    <h4>FotoFusion v1.0.1</h4>
                     <p>Professional photo organization tool</p>
                     <p>Created by <strong>Jakub Wawak</strong></p>
                     <br>
@@ -275,8 +289,8 @@
     <!-- Completion Modal -->
     <div class="modal" id="completionModal">
         <div class="modal-content" style="min-width: 600px;">
-            <div class="modal-header">
-                <h3>Copy Process Complete</h3>
+            <div class="modal-header completion-header">
+                <h3><span class="completion-checkmark">✓</span> Copy Process Complete</h3>
                 <button class="modal-close" id="completionModalCloseBtn">×</button>
             </div>
             <div class="modal-body">

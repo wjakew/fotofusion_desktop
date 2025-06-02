@@ -221,7 +221,7 @@ class FotoFusionApp {
         });
 
         document.getElementById('modalSaveBtn').addEventListener('click', () => {
-            this.savePresetFromModal();
+            this.savePreset();
         });
 
         // About modal
@@ -273,7 +273,7 @@ class FotoFusionApp {
         });
 
         document.getElementById('verifyFilesBtn').addEventListener('click', () => {
-            this.verifyFilesCopy();
+            this.verifyFiles();
         });
 
         // Close modals when clicking backdrop
@@ -376,6 +376,8 @@ class FotoFusionApp {
             const dateFormat = document.getElementById('dateFormat').value;
             const prefix = document.getElementById('folderPrefix').value;
             const preserveOriginal = document.getElementById('preserveOriginal').checked;
+            const startDateTime = document.getElementById('startDateTime').value;
+            const endDateTime = document.getElementById('endDateTime').value;
 
             summary.innerHTML = `
                 <h4>Preset Summary</h4>
@@ -395,6 +397,16 @@ class FotoFusionApp {
                     <span class="summary-label">Preserve Filenames:</span>
                     <span class="summary-value">${preserveOriginal ? 'Yes' : 'No'}</span>
                 </div>
+                ${startDateTime ? `
+                <div class="summary-item">
+                    <span class="summary-label">Start Date/Time:</span>
+                    <span class="summary-value">${startDateTime}</span>
+                </div>` : ''}
+                ${endDateTime ? `
+                <div class="summary-item">
+                    <span class="summary-label">End Date/Time:</span>
+                    <span class="summary-value">${endDateTime}</span>
+                </div>` : ''}
             `;
         }
 
@@ -501,8 +513,17 @@ Keyboard Shortcuts:
             const prefix = document.getElementById('folderPrefix').value.trim();
             const preserveOriginal = document.getElementById('preserveOriginal').checked;
             const dateFormat = document.getElementById('dateFormat').value;
+            
+            // Get date/time range filters
+            const startDateTime = document.getElementById('startDateTime').value;
+            const endDateTime = document.getElementById('endDateTime').value;
 
             this.log(`Starting copy with structure: ${structureType}, date format: ${dateFormat}`, 'info');
+            
+            // Log date/time filter information if provided
+            if (startDateTime || endDateTime) {
+                this.log(`Date/time filter applied: ${startDateTime || 'any'} to ${endDateTime || 'any'}`, 'info');
+            }
             
             // IMPORTANT: Don't regenerate folder structure here - it would reset exclusions!
             // The structure should already exist from the preview
@@ -527,7 +548,9 @@ Keyboard Shortcuts:
                 (progress) => {
                     const percentage = Math.round((progress.current / progress.total) * 100);
                     this.setProgress(percentage, `Copying: ${progress.filename} (${progress.current}/${progress.total})`);
-                }
+                },
+                startDateTime || null,
+                endDateTime || null
             );
 
             // Generate and save report
@@ -881,6 +904,8 @@ Keyboard Shortcuts:
         document.getElementById('dateFormat').value = 'YYYY/MM/DD';
         document.getElementById('folderPrefix').value = '';
         document.getElementById('preserveOriginal').checked = true;
+        document.getElementById('startDateTime').value = '';
+        document.getElementById('endDateTime').value = '';
         
         // Clear exclusion stats
         const statsElement = document.getElementById('exclusionStats');
@@ -894,33 +919,67 @@ Keyboard Shortcuts:
         this.log('Project cleared - Ready for new organization', 'info');
     }
 
-    async savePresetFromModal() {
-        const name = document.getElementById('presetNameInput').value.trim();
-        if (!name) {
+    savePreset() {
+        const presetName = document.getElementById('presetNameInput').value.trim();
+        if (!presetName) {
             this.log('Please enter a preset name', 'error');
             return;
         }
 
         const preset = {
-            name: name,
+            name: presetName,
             folderStructure: document.getElementById('folderStructure').value,
             dateFormat: document.getElementById('dateFormat').value,
-            folderPrefix: document.getElementById('folderPrefix').value,
+            folderPrefix: document.getElementById('folderPrefix').value.trim(),
             preserveOriginal: document.getElementById('preserveOriginal').checked,
-            destinationPath: this.destinationPath || null
+            destinationPath: this.destinationPath || null,
+            startDateTime: document.getElementById('startDateTime').value || null,
+            endDateTime: document.getElementById('endDateTime').value || null
         };
 
-        try {
-            const savedPreset = await ipcRenderer.invoke('save-preset-to-storage', preset);
-            if (savedPreset) {
-                this.log(`Preset saved: ${name}`, 'success');
-                this.hideModal('presetModal');
-            } else {
-                this.log('Failed to save preset', 'error');
+        this.savePresetToStorage(preset);
+        this.log(`Preset "${presetName}" saved successfully`, 'success');
+        this.hideModal('presetModal');
+    }
+
+    applyPreset(preset) {
+        document.getElementById('folderStructure').value = preset.folderStructure || 'date';
+        document.getElementById('dateFormat').value = preset.dateFormat || 'YYYY/MM/DD';
+        document.getElementById('folderPrefix').value = preset.folderPrefix || '';
+        document.getElementById('preserveOriginal').checked = preset.preserveOriginal !== false;
+        
+        // Apply destination path if it exists and is valid
+        if (preset.destinationPath) {
+            const fs = require('fs');
+            try {
+                if (fs.existsSync(preset.destinationPath)) {
+                    this.destinationPath = preset.destinationPath;
+                    document.getElementById('destPath').textContent = preset.destinationPath;
+                    this.log(`Preset destination applied: ${preset.destinationPath}`, 'info');
+                } else {
+                    this.log(`Preset destination folder no longer exists: ${preset.destinationPath}`, 'warning');
+                }
+            } catch (error) {
+                this.log(`Error checking preset destination: ${error.message}`, 'warning');
             }
-        } catch (error) {
-            this.log(`Error saving preset: ${error.message}`, 'error');
         }
+        
+        // Apply date/time settings if they exist
+        if (preset.startDateTime) {
+            document.getElementById('startDateTime').value = preset.startDateTime;
+        } else {
+            document.getElementById('startDateTime').value = '';
+        }
+        
+        if (preset.endDateTime) {
+            document.getElementById('endDateTime').value = preset.endDateTime;
+        } else {
+            document.getElementById('endDateTime').value = '';
+        }
+        
+        this.updateFolderPreview();
+        this.updateFormHints();
+        this.updateButtons();
     }
 
     async showStoredPresets() {
@@ -1074,33 +1133,6 @@ Keyboard Shortcuts:
         } catch (error) {
             this.log(`Error loading preset from file: ${error.message}`, 'error');
         }
-    }
-
-    applyPreset(preset) {
-        document.getElementById('folderStructure').value = preset.folderStructure || 'date';
-        document.getElementById('dateFormat').value = preset.dateFormat || 'YYYY/MM/DD';
-        document.getElementById('folderPrefix').value = preset.folderPrefix || '';
-        document.getElementById('preserveOriginal').checked = preset.preserveOriginal !== false;
-        
-        // Apply destination path if it exists and is valid
-        if (preset.destinationPath) {
-            const fs = require('fs');
-            try {
-                if (fs.existsSync(preset.destinationPath)) {
-                    this.destinationPath = preset.destinationPath;
-                    document.getElementById('destPath').textContent = preset.destinationPath;
-                    this.log(`Preset destination applied: ${preset.destinationPath}`, 'info');
-                } else {
-                    this.log(`Preset destination folder no longer exists: ${preset.destinationPath}`, 'warning');
-                }
-            } catch (error) {
-                this.log(`Error checking preset destination: ${error.message}`, 'warning');
-            }
-        }
-        
-        this.updateFolderPreview();
-        this.updateFormHints();
-        this.updateButtons();
     }
 
     async openPresetManager() {
@@ -1401,99 +1433,132 @@ ${stats.dateRange && stats.dateRange.monthlyDistribution ? `## Monthly Distribut
 ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${item.count} photos (${item.percentage}%)`).join('\n')}` : ''}
 
 ---
-*Report generated by FotoFusion v1.0.0*
+*Report generated by FotoFusion v1.0.1*
         `;
     }
 
     showCompletionSummary(results) {
-        const stats = this.photoProcessor.getExclusionStats();
-        const durationMinutes = Math.round((results.endTime - results.startTime) / 60000 * 100) / 100;
+        const statsDiv = document.getElementById('completionStats');
         
-        // Format the summary for the modal
-        const summaryHTML = `
-            <div class="completion-summary">
-                <div class="completion-icon">✅</div>
-                <h4>Copy Process Complete</h4>
-                
-                <div class="stats-grid">
+        const startTime = new Date(results.startTime).toLocaleString();
+        const endTime = new Date(results.endTime).toLocaleString();
+        const duration = (results.endTime - results.startTime) / 1000;
+        const durationText = duration > 60 ? 
+            `${Math.floor(duration / 60)} minutes ${Math.round(duration % 60)} seconds` : 
+            `${Math.round(duration)} seconds`;
+            
+        // Calculate bytes per second
+        const totalBytes = results.success * 5242880; // Assuming 5MB per photo average
+        const bytesPerSecond = Math.round(totalBytes / duration);
+        const mbPerSecond = (bytesPerSecond / (1024 * 1024)).toFixed(2);
+        
+        // Calculate percentages for better visualization
+        const successRate = results.totalPhotos > 0 ? 
+            Math.round((results.success / results.includedPhotos) * 100) : 0;
+        const excludedRate = results.totalPhotos > 0 ?
+            Math.round((results.excludedPhotos / results.totalPhotos) * 100) : 0;
+        
+        let summaryHtml = `
+            <div class="summary-section">
+                <h4>Copy Summary</h4>
+                <div class="stats-row">
                     <div class="stats-item">
-                        <span class="stats-label">Copied:</span>
-                        <span class="stats-value">${results.success} photos</span>
+                        <div class="stats-value">${results.success}</div>
+                        <div class="stats-label">Photos Copied</div>
                     </div>
-                    ${results.failed > 0 ? `
-                    <div class="stats-item">
-                        <span class="stats-label">Failed:</span>
-                        <span class="stats-value">${results.failed} photos</span>
-                    </div>` : ''}
-                    <div class="stats-item">
-                        <span class="stats-label">Folders Created:</span>
-                        <span class="stats-value">${results.foldersCopied}</span>
+                    <div class="stats-item ${results.failed > 0 ? 'warning' : ''}">
+                        <div class="stats-value">${results.failed}</div>
+                        <div class="stats-label">Failed</div>
                     </div>
-                    ${stats.totalExcluded > 0 ? `
                     <div class="stats-item">
-                        <span class="stats-label">Excluded:</span>
-                        <span class="stats-value">${stats.totalExcluded} photos</span>
-                    </div>` : ''}
-                    <div class="stats-item">
-                        <span class="stats-label">Duration:</span>
-                        <span class="stats-value">${durationMinutes} minutes</span>
+                        <div class="stats-value">${results.foldersCopied}</div>
+                        <div class="stats-label">Folders Created</div>
                     </div>
                 </div>
-                
-                <div class="completion-info">
-                    <p>Report saved to destination folder.</p>
-                    <p>Click "Verify Files" to check if all files were copied correctly.</p>
+                <div class="stats-detail">Success Rate: ${successRate}% of selected photos</div>
+                <div class="stats-detail">Excluded: ${results.excludedPhotos} photos (${excludedRate}% of total)</div>
+            </div>
+            
+            <div class="summary-section">
+                <h4>Performance</h4>
+                <div class="stats-row">
+                    <div class="stats-item">
+                        <div class="stats-value">${durationText}</div>
+                        <div class="stats-label">Duration</div>
+                    </div>
+                    <div class="stats-item">
+                        <div class="stats-value">${mbPerSecond}</div>
+                        <div class="stats-label">MB/s</div>
+                    </div>
+                    <div class="stats-item">
+                        <div class="stats-value">${Math.round(results.success / (duration / 60) * 100) / 100}</div>
+                        <div class="stats-label">Photos/min</div>
+                    </div>
                 </div>
+                <div class="stats-detail">Started: ${startTime}</div>
+                <div class="stats-detail">Completed: ${endTime}</div>
             </div>
         `;
-        
-        // Show summary in modal
-        document.getElementById('completionStats').innerHTML = summaryHTML;
-        document.getElementById('verificationStatus').style.display = 'none';
-        this.showModal('completionModal');
-        
-        // Also log to the main window
-        const logSummary = `
-Copy completed successfully!
 
-✅ ${results.success} photos copied
-${results.failed > 0 ? `❌ ${results.failed} failed` : ''}
-📁 ${results.foldersCopied} folders created
-${stats.totalExcluded > 0 ? `🚫 ${stats.totalExcluded} photos excluded` : ''}
-⏱️ Duration: ${durationMinutes} minutes
-
-Report saved to destination folder.
-        `.trim();
+        // Add date/time filter information if it was used
+        if (results.dateTimeFilter && (results.dateTimeFilter.startDateTime || results.dateTimeFilter.endDateTime)) {
+            let filterText = '';
+            
+            if (results.dateTimeFilter.startDateTime) {
+                filterText += `<div class="stats-detail">Start: ${new Date(results.dateTimeFilter.startDateTime).toLocaleString()}</div>`;
+            } else {
+                filterText += `<div class="stats-detail">Start: Any</div>`;
+            }
+            
+            if (results.dateTimeFilter.endDateTime) {
+                filterText += `<div class="stats-detail">End: ${new Date(results.dateTimeFilter.endDateTime).toLocaleString()}</div>`;
+            } else {
+                filterText += `<div class="stats-detail">End: Any</div>`;
+            }
+            
+            summaryHtml += `
+                <div class="summary-section">
+                    <h4>Date/Time Filter</h4>
+                    ${filterText}
+                    <div class="stats-detail">Only photos within this time range were processed</div>
+                </div>
+            `;
+        }
         
-        this.log(logSummary, 'success');
+        statsDiv.innerHTML = summaryHtml;
+        
+        // Show the modal
+        document.getElementById('completionModal').classList.add('active');
     }
 
-    async verifyFilesCopy() {
-        if (!this.destinationPath || this.photoProcessor.photos.length === 0) {
-            this.log('No files to verify', 'error');
+    async verifyFiles() {
+        if (!this.destinationPath) {
+            this.log('No destination folder selected', 'error');
             return;
         }
 
-        // Disable verify button and show progress
-        const verifyBtn = document.getElementById('verifyFilesBtn');
-        verifyBtn.disabled = true;
-        verifyBtn.textContent = 'Verifying...';
-        
-        // Reset verification status area
-        const verificationStatus = document.getElementById('verificationStatus');
-        verificationStatus.style.display = 'block';
-        verificationStatus.innerHTML = '<div class="verification-progress">Verifying files... Please wait</div>';
-        
         this.setProgress(0, 'Starting verification...');
-        
+        this.isProcessing = true;
+        this.updateButtons();
+
         try {
-            // Run verification
+            const verificationDiv = document.getElementById('verificationStatus');
+            verificationDiv.innerHTML = '<div class="verifying">Verifying files, please wait...</div>';
+            verificationDiv.style.display = 'block';
+            
+            // Get date/time range filters (same as used for copying)
+            const startDateTime = document.getElementById('startDateTime').value;
+            const endDateTime = document.getElementById('endDateTime').value;
+
+            // Verify files
             const results = await this.photoProcessor.verifyFilesCopy(
                 this.destinationPath,
                 (progress) => {
                     const percentage = Math.round((progress.current / progress.total) * 100);
                     this.setProgress(percentage, `Verifying: ${progress.filename} (${progress.current}/${progress.total})`);
-                }
+                },
+                startDateTime || null,
+                endDateTime || null
             );
 
             // Calculate duration
@@ -1545,7 +1610,7 @@ Report saved to destination folder.
                 </div>
             `;
             
-            verificationStatus.innerHTML = resultHTML;
+            verificationDiv.innerHTML = resultHTML;
             
             // Log to main window
             if (results.verified === results.total) {
@@ -1556,13 +1621,30 @@ Report saved to destination folder.
             
             this.setProgress(100, 'Verification complete');
         } catch (error) {
-            verificationStatus.innerHTML = `<div class="verification-error">Error during verification: ${error.message}</div>`;
+            verificationDiv.innerHTML = `<div class="verification-error">Error during verification: ${error.message}</div>`;
             this.log(`Error during verification: ${error.message}`, 'error');
             this.setProgress(0, 'Verification failed');
         } finally {
-            // Re-enable verify button
-            verifyBtn.disabled = false;
-            verifyBtn.textContent = 'Verify Files';
+            this.isProcessing = false;
+            this.updateButtons();
+        }
+    }
+
+    savePresetToStorage(preset) {
+        try {
+            ipcRenderer.invoke('save-preset-to-storage', preset)
+                .then(savedPreset => {
+                    if (savedPreset) {
+                        this.log(`Preset "${preset.name}" saved successfully`, 'success');
+                    } else {
+                        this.log('Failed to save preset', 'error');
+                    }
+                })
+                .catch(error => {
+                    this.log(`Error saving preset: ${error.message}`, 'error');
+                });
+        } catch (error) {
+            this.log(`Error saving preset: ${error.message}`, 'error');
         }
     }
 }

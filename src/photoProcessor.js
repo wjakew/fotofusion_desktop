@@ -138,6 +138,34 @@ class PhotoProcessor {
         });
     }
 
+    getPhotosInDateTimeRange(startDateTime = null, endDateTime = null) {
+        // If both are null, return all included photos
+        if (!startDateTime && !endDateTime) {
+            return this.getIncludedPhotos();
+        }
+
+        return this.getIncludedPhotos().filter(photo => {
+            // Get the photo's date/time from metadata
+            const photoDateTime = new Date(photo.metadata.dateTime);
+            
+            // Skip photos with invalid dates
+            if (isNaN(photoDateTime)) {
+                return false;
+            }
+            
+            // Check if photo is within the specified range
+            if (startDateTime && photoDateTime < new Date(startDateTime)) {
+                return false;
+            }
+            
+            if (endDateTime && photoDateTime > new Date(endDateTime)) {
+                return false;
+            }
+            
+            return true;
+        });
+    }
+
     getPhotoFolderPath(photo) {
         // Find which folder this photo belongs to
         for (const [folderPath, photos] of Object.entries(this.folderStructure)) {
@@ -693,8 +721,9 @@ class PhotoProcessor {
             .replace(/^_|_$/g, '');
     }
 
-    async copyPhotos(destinationRoot, preserveOriginal = true, onProgress = null) {
-        const includedPhotos = this.getIncludedPhotos();
+    async copyPhotos(destinationRoot, preserveOriginal = true, onProgress = null, startDateTime = null, endDateTime = null) {
+        // Get photos filtered by date/time range
+        const includedPhotos = this.getPhotosInDateTimeRange(startDateTime, endDateTime);
         const results = {
             success: 0,
             failed: 0,
@@ -704,7 +733,11 @@ class PhotoProcessor {
             includedPhotos: includedPhotos.length,
             excludedPhotos: this.photos.length - includedPhotos.length,
             startTime: new Date(),
-            endTime: null
+            endTime: null,
+            dateTimeFilter: {
+                startDateTime: startDateTime,
+                endDateTime: endDateTime
+            }
         };
 
         let processedCount = 0;
@@ -729,9 +762,29 @@ class PhotoProcessor {
             }
             
             // Filter out individually excluded photos from this folder
-            const includedPhotosInFolder = photos.filter(photo => 
-                !this.excludedPhotos.has(photo.id)
-            );
+            // Also filter by date/time range
+            const includedPhotosInFolder = photos.filter(photo => {
+                // Check if photo is excluded
+                if (this.excludedPhotos.has(photo.id)) {
+                    return false;
+                }
+                
+                // Check date/time range if provided
+                if (startDateTime || endDateTime) {
+                    const photoDateTime = new Date(photo.metadata.dateTime);
+                    if (isNaN(photoDateTime)) {
+                        return false;
+                    }
+                    if (startDateTime && photoDateTime < new Date(startDateTime)) {
+                        return false;
+                    }
+                    if (endDateTime && photoDateTime > new Date(endDateTime)) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
             
             // Only include folder if it has photos to copy
             if (includedPhotosInFolder.length > 0) {
@@ -823,7 +876,24 @@ class PhotoProcessor {
         report += `- **Structure Type:** ${structureType}\n`;
         report += `- **Date Format:** ${dateFormat}\n`;
         if (prefix) report += `- **Prefix:** ${prefix}\n`;
-        report += `- **Destination:** ${destinationPath}\n\n`;
+        report += `- **Destination:** ${destinationPath}\n`;
+        
+        // Add date/time filter information if it was used
+        if (results.dateTimeFilter) {
+            report += `\n## Date/Time Filter\n\n`;
+            if (results.dateTimeFilter.startDateTime) {
+                report += `- **Start Date & Time:** ${new Date(results.dateTimeFilter.startDateTime).toLocaleString()}\n`;
+            } else {
+                report += `- **Start Date & Time:** Not specified\n`;
+            }
+            
+            if (results.dateTimeFilter.endDateTime) {
+                report += `- **End Date & Time:** ${new Date(results.dateTimeFilter.endDateTime).toLocaleString()}\n`;
+            } else {
+                report += `- **End Date & Time:** Not specified\n`;
+            }
+        }
+        report += `\n`;
 
         if (exclusionStats.totalExcluded > 0) {
             report += `## Exclusions\n\n`;
@@ -900,8 +970,8 @@ class PhotoProcessor {
         return report;
     }
 
-    async verifyFilesCopy(destinationRoot, onProgress = null) {
-        const includedPhotos = this.getIncludedPhotos();
+    async verifyFilesCopy(destinationRoot, onProgress = null, startDateTime = null, endDateTime = null) {
+        const includedPhotos = this.getPhotosInDateTimeRange(startDateTime, endDateTime);
         const results = {
             total: includedPhotos.length,
             verified: 0,
@@ -911,7 +981,11 @@ class PhotoProcessor {
             sizeMismatch: 0,
             errors: [],
             startTime: new Date(),
-            endTime: null
+            endTime: null,
+            dateTimeFilter: {
+                startDateTime: startDateTime,
+                endDateTime: endDateTime
+            }
         };
 
         let processedCount = 0;
@@ -930,9 +1004,29 @@ class PhotoProcessor {
             }
             
             // Filter out individually excluded photos from this folder
-            const includedPhotosInFolder = photos.filter(photo => 
-                !this.excludedPhotos.has(photo.id)
-            );
+            // Also filter by date/time range
+            const includedPhotosInFolder = photos.filter(photo => {
+                // Check if photo is excluded
+                if (this.excludedPhotos.has(photo.id)) {
+                    return false;
+                }
+                
+                // Check date/time range if provided
+                if (startDateTime || endDateTime) {
+                    const photoDateTime = new Date(photo.metadata.dateTime);
+                    if (isNaN(photoDateTime)) {
+                        return false;
+                    }
+                    if (startDateTime && photoDateTime < new Date(startDateTime)) {
+                        return false;
+                    }
+                    if (endDateTime && photoDateTime > new Date(endDateTime)) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
             
             // Process included photos
             for (const photo of includedPhotosInFolder) {
