@@ -205,7 +205,7 @@ class FotoFusionApp {
         });
 
         document.getElementById('supportBtn').addEventListener('click', () => {
-            this.log('Support: Contact jakub.wawak@example.com for assistance', 'info');
+            this.log('Support: Contact kubawawak@gmail.com for assistance', 'info');
             this.closeAllMenus();
         });
     }
