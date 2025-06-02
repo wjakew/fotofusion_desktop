@@ -727,6 +727,8 @@ class PhotoProcessor {
         const results = {
             success: 0,
             failed: 0,
+            skipped: 0,
+            skippedFiles: [],
             errors: [],
             foldersCopied: 0,
             totalPhotos: this.photos.length,
@@ -813,19 +815,45 @@ class PhotoProcessor {
                             this.generateNewFilename(photo, processedCount);
                         
                         const targetPath = path.join(targetFolder, filename);
-                        await fs.copyFile(photo.path, targetPath);
                         
-                        results.success++;
-                        processedCount++;
-                        
-                        if (onProgress) {
-                            onProgress({
-                                current: processedCount,
-                                total: totalFiles,
-                                filename: photo.filename,
-                                targetPath: targetPath,
-                                action: 'copying'
+                        // Check if file already exists
+                        try {
+                            await fs.access(targetPath);
+                            // File exists, skip copying
+                            console.log(`File already exists: ${targetPath}`);
+                            results.skipped++;
+                            results.skippedFiles.push({
+                                file: photo.path,
+                                destination: targetPath,
+                                filename: photo.filename
                             });
+                            processedCount++;
+                            
+                            if (onProgress) {
+                                onProgress({
+                                    current: processedCount,
+                                    total: totalFiles,
+                                    filename: photo.filename,
+                                    targetPath: targetPath,
+                                    action: 'skipped'
+                                });
+                            }
+                        } catch (err) {
+                            // File doesn't exist, proceed with copying
+                            await fs.copyFile(photo.path, targetPath);
+                            
+                            results.success++;
+                            processedCount++;
+                            
+                            if (onProgress) {
+                                onProgress({
+                                    current: processedCount,
+                                    total: totalFiles,
+                                    filename: photo.filename,
+                                    targetPath: targetPath,
+                                    action: 'copying'
+                                });
+                            }
                         }
                     } catch (error) {
                         results.failed++;
@@ -871,6 +899,7 @@ class PhotoProcessor {
         report += `- **Photos Included:** ${results.includedPhotos}\n`;
         report += `- **Photos Excluded:** ${results.excludedPhotos}\n`;
         report += `- **Successfully Copied:** ${results.success}\n`;
+        report += `- **Skipped (Already Exist):** ${results.skipped}\n`;
         report += `- **Failed:** ${results.failed}\n`;
         report += `- **Folders Created:** ${results.foldersCopied}\n`;
         report += `- **Structure Type:** ${structureType}\n`;
@@ -943,6 +972,16 @@ class PhotoProcessor {
                 } else if (error.folder) {
                     report += `- **Folder:** ${error.folder}\n  **Error:** ${error.error}\n\n`;
                 }
+            }
+        }
+        
+        if (results.skippedFiles && results.skippedFiles.length > 0) {
+            report += `## Skipped Files (Already Exist)\n\n`;
+            for (const skipped of results.skippedFiles.slice(0, 20)) {
+                report += `- **File:** ${skipped.filename}\n  **Path:** ${skipped.destination}\n\n`;
+            }
+            if (results.skippedFiles.length > 20) {
+                report += `...and ${results.skippedFiles.length - 20} more files\n\n`;
             }
         }
 

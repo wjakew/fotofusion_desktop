@@ -547,7 +547,11 @@ Keyboard Shortcuts:
                 preserveOriginal,
                 (progress) => {
                     const percentage = Math.round((progress.current / progress.total) * 100);
-                    this.setProgress(percentage, `Copying: ${progress.filename} (${progress.current}/${progress.total})`);
+                    if (progress.action === 'skipped') {
+                        this.setProgress(percentage, `Skipping: ${progress.filename} (already exists) (${progress.current}/${progress.total})`);
+                    } else {
+                        this.setProgress(percentage, `Copying: ${progress.filename} (${progress.current}/${progress.total})`);
+                    }
                 },
                 startDateTime || null,
                 endDateTime || null
@@ -558,12 +562,15 @@ Keyboard Shortcuts:
             const reportPath = await ipcRenderer.invoke('save-report', report, this.destinationPath);
 
             this.log(`Copy complete! Successfully copied ${results.success} photos`, 'success');
+            if (results.skipped > 0) {
+                this.log(`${results.skipped} files already exist and were skipped`, 'info');
+            }
             if (results.failed > 0) {
                 this.log(`${results.failed} files failed to copy`, 'error');
             }
             this.log(`Report saved to: ${reportPath}`, 'info');
 
-            this.setProgress(100, `Copy complete: ${results.success} photos copied`);
+            this.setProgress(100, `Copy complete: ${results.success} photos copied, ${results.skipped || 0} skipped`);
             
             // Show completion summary
             this.showCompletionSummary(results);
@@ -1459,46 +1466,72 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
             Math.round((results.excludedPhotos / results.totalPhotos) * 100) : 0;
         
         let summaryHtml = `
-            <div class="summary-section">
-                <h4>Copy Summary</h4>
-                <div class="stats-row">
-                    <div class="stats-item">
-                        <div class="stats-value">${results.success}</div>
-                        <div class="stats-label">Photos Copied</div>
+            <div class="summary-container">
+                <div class="summary-section">
+                    <h4>Copy Summary</h4>
+                    <div class="stats-row">
+                        <div class="stats-item">
+                            <div class="stats-value">${results.success}</div>
+                            <div class="stats-label">Photos Copied</div>
+                        </div>
+                        <div class="stats-item ${results.skipped > 0 ? 'info' : ''}">
+                            <div class="stats-value">${results.skipped || 0}</div>
+                            <div class="stats-label">Skipped (Exist)</div>
+                        </div>
+                        <div class="stats-item ${results.failed > 0 ? 'warning' : ''}">
+                            <div class="stats-value">${results.failed}</div>
+                            <div class="stats-label">Failed</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-value">${results.foldersCopied}</div>
+                            <div class="stats-label">Folders Created</div>
+                        </div>
                     </div>
-                    <div class="stats-item ${results.failed > 0 ? 'warning' : ''}">
-                        <div class="stats-value">${results.failed}</div>
-                        <div class="stats-label">Failed</div>
-                    </div>
-                    <div class="stats-item">
-                        <div class="stats-value">${results.foldersCopied}</div>
-                        <div class="stats-label">Folders Created</div>
-                    </div>
+                    <div class="stats-detail">Success Rate: ${successRate}% of selected photos</div>
+                    <div class="stats-detail">Excluded: ${results.excludedPhotos} photos (${excludedRate}% of total)</div>
                 </div>
-                <div class="stats-detail">Success Rate: ${successRate}% of selected photos</div>
-                <div class="stats-detail">Excluded: ${results.excludedPhotos} photos (${excludedRate}% of total)</div>
-            </div>
-            
-            <div class="summary-section">
-                <h4>Performance</h4>
-                <div class="stats-row">
-                    <div class="stats-item">
-                        <div class="stats-value">${durationText}</div>
-                        <div class="stats-label">Duration</div>
+                
+                <div class="summary-section">
+                    <h4>Performance</h4>
+                    <div class="stats-row">
+                        <div class="stats-item">
+                            <div class="stats-value">${durationText}</div>
+                            <div class="stats-label">Duration</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-value">${mbPerSecond}</div>
+                            <div class="stats-label">MB/s</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-value">${Math.round(results.success / (duration / 60) * 100) / 100}</div>
+                            <div class="stats-label">Photos/min</div>
+                        </div>
                     </div>
-                    <div class="stats-item">
-                        <div class="stats-value">${mbPerSecond}</div>
-                        <div class="stats-label">MB/s</div>
-                    </div>
-                    <div class="stats-item">
-                        <div class="stats-value">${Math.round(results.success / (duration / 60) * 100) / 100}</div>
-                        <div class="stats-label">Photos/min</div>
-                    </div>
+                    <div class="stats-detail">Started: ${startTime}</div>
+                    <div class="stats-detail">Completed: ${endTime}</div>
                 </div>
-                <div class="stats-detail">Started: ${startTime}</div>
-                <div class="stats-detail">Completed: ${endTime}</div>
             </div>
         `;
+
+        // Add skipped files section if any files were skipped
+        if (results.skippedFiles && results.skippedFiles.length > 0) {
+            summaryHtml += `
+                <div class="summary-section skipped-section">
+                    <h4>Skipped Files (Already Exist)</h4>
+                    <div class="skipped-files-list">
+                        <ul>
+                            ${results.skippedFiles.slice(0, 10).map(file => 
+                                `<li title="${file.destination}">${file.filename}</li>`
+                            ).join('')}
+                            ${results.skippedFiles.length > 10 ? 
+                                `<li class="more-items">...and ${results.skippedFiles.length - 10} more</li>` : 
+                                ''}
+                        </ul>
+                    </div>
+                    <div class="stats-detail">These files already exist in the destination and were not copied</div>
+                </div>
+            `;
+        }
 
         // Add date/time filter information if it was used
         if (results.dateTimeFilter && (results.dateTimeFilter.startDateTime || results.dateTimeFilter.endDateTime)) {
@@ -1517,7 +1550,7 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
             }
             
             summaryHtml += `
-                <div class="summary-section">
+                <div class="summary-section date-filter-section">
                     <h4>Date/Time Filter</h4>
                     ${filterText}
                     <div class="stats-detail">Only photos within this time range were processed</div>
@@ -1606,24 +1639,21 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                             `).join('')}
                             ${results.errors.length > 5 ? `<li>... and ${results.errors.length - 5} more issues</li>` : ''}
                         </ul>
-                    </div>` : ''}
+                    </div>
+                    ` : ''}
                 </div>
             `;
             
             verificationDiv.innerHTML = resultHTML;
-            
-            // Log to main window
-            if (results.verified === results.total) {
-                this.log(`✅ Verification complete: All ${results.total} files verified successfully`, 'success');
-            } else {
-                this.log(`⚠️ Verification complete: ${results.verified}/${results.total} files verified, ${results.failed} issues found`, 'warning');
-            }
-            
             this.setProgress(100, 'Verification complete');
+            
         } catch (error) {
-            verificationDiv.innerHTML = `<div class="verification-error">Error during verification: ${error.message}</div>`;
-            this.log(`Error during verification: ${error.message}`, 'error');
-            this.setProgress(0, 'Verification failed');
+            console.error('Verification error:', error);
+            document.getElementById('verificationStatus').innerHTML = `
+                <div class="verification-error">
+                    Error during verification: ${error.message || error}
+                </div>
+            `;
         } finally {
             this.isProcessing = false;
             this.updateButtons();
