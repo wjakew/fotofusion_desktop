@@ -484,13 +484,40 @@ class PhotoProcessor {
 
     async extractMetadata(filePath) {
         try {
-            const metadata = await exifr.parse(filePath, {
+            // Get file extension to determine if it's a raw format
+            const fileExtension = path.extname(filePath).toLowerCase();
+            const isRawFormat = ['.cr3', '.cr2', '.nef', '.arw', '.orf', '.rw2', '.pef', '.srw', '.raf', '.dng', '.3fr', '.ari', '.bay', '.crw', '.dcr', '.erf', '.fff', '.iiq', '.k25', '.kdc', '.mdc', '.mos', '.mrw', '.nrw', '.ptx', '.r3d', '.rwl', '.sr2', '.srf', '.x3f'].includes(fileExtension);
+            
+            // Configure exifr options based on file type
+            const exifrOptions = {
                 pick: [
                     'Make', 'Model', 'DateTime', 'DateTimeOriginal', 'CreateDate',
                     'LensModel', 'LensMake', 'FocalLength', 'FNumber', 'ISO',
                     'ExposureTime', 'WhiteBalance', 'Flash', 'Orientation'
                 ]
-            });
+            };
+            
+            // For raw formats, especially CR3, add additional options for better compatibility
+            if (isRawFormat) {
+                exifrOptions.tiff = true;
+                exifrOptions.raw = true;
+                exifrOptions.xmp = true;
+                exifrOptions.icc = true;
+                exifrOptions.iptc = true;
+                exifrOptions.jpeg = true;
+                exifrOptions.heic = true;
+                exifrOptions.png = true;
+                exifrOptions.webp = true;
+                exifrOptions.multiSegment = true; // Important for complex raw formats
+            }
+            
+            const metadata = await exifr.parse(filePath, exifrOptions);
+
+            // Debug logging for CR3 files
+            if (fileExtension === '.cr3') {
+                console.log(`CR3 file processed: ${path.basename(filePath)}`);
+                console.log('Extracted metadata:', JSON.stringify(metadata, null, 2));
+            }
 
             const stats = await fs.stat(filePath);
             
@@ -508,6 +535,51 @@ class PhotoProcessor {
                 lastModified: stats.mtime
             };
         } catch (error) {
+            console.error(`Error extracting metadata from ${filePath}:`, error);
+            
+            // For CR3 files, try a fallback approach with different options
+            const fileExtension = path.extname(filePath).toLowerCase();
+            if (fileExtension === '.cr3') {
+                try {
+                    console.log(`Attempting fallback method for CR3 file: ${path.basename(filePath)}`);
+                    const fallbackMetadata = await exifr.parse(filePath, {
+                        tiff: true,
+                        raw: true,
+                        xmp: true,
+                        icc: true,
+                        iptc: true,
+                        jpeg: true,
+                        heic: true,
+                        png: true,
+                        webp: true,
+                        multiSegment: true, // Important for complex raw formats
+                        // Try without pick to get all available data
+                    });
+                    
+                    if (fallbackMetadata && Object.keys(fallbackMetadata).length > 0) {
+                        console.log(`Fallback successful for CR3 file: ${path.basename(filePath)}`);
+                        console.log('Fallback metadata:', JSON.stringify(fallbackMetadata, null, 2));
+                        
+                        const stats = await fs.stat(filePath);
+                        return {
+                            camera: this.getCameraName(fallbackMetadata),
+                            lens: this.getLensName(fallbackMetadata),
+                            dateTime: this.getDateTime(fallbackMetadata, stats),
+                            iso: fallbackMetadata?.ISO || null,
+                            focalLength: fallbackMetadata?.FocalLength || null,
+                            aperture: fallbackMetadata?.FNumber || null,
+                            exposureTime: fallbackMetadata?.ExposureTime || null,
+                            flash: fallbackMetadata?.Flash || null,
+                            orientation: fallbackMetadata?.Orientation || null,
+                            fileSize: stats.size,
+                            lastModified: stats.mtime
+                        };
+                    }
+                } catch (fallbackError) {
+                    console.error(`Fallback method also failed for CR3 file ${path.basename(filePath)}:`, fallbackError);
+                }
+            }
+            
             const stats = await fs.stat(filePath);
             return {
                 camera: 'Unknown Camera',
