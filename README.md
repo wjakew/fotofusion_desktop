@@ -18,7 +18,8 @@ FotoFusion is a professional photo organization tool that helps photographers ef
   - Original filename preservation option
 
 - **Smart Photo Management**
-  - Support for RAW and JPEG formats
+  - Support for RAW and JPEG formats (including CR3, CR2, NEF, ARW, and more)
+  - Enhanced CR3 file support with comprehensive metadata extraction
   - Metadata-based organization
   - Batch processing capabilities
   - Preview folder structure before copying
@@ -112,12 +113,18 @@ FotoFusion is a professional photo organization tool that helps photographers ef
    - Check folder permissions
    - Ensure metadata is accessible
 
-2. **Copy Process Slow**
+2. **CR3 Files Show "Unknown Camera"**
+   - Ensure you're using the latest version of FotoFusion
+   - CR3 files now have enhanced support with multiple fallback methods
+   - Check that the CR3 files contain valid metadata
+   - Try refreshing the folder scan if metadata extraction fails
+
+3. **Copy Process Slow**
    - Check available disk space
    - Verify disk health
    - Consider reducing batch size
 
-3. **Preset Loading Fails**
+4. **Preset Loading Fails**
    - Verify preset file format
    - Check file permissions
    - Try recreating the preset

@@ -114,6 +114,28 @@ class FotoFusionApp {
                 this.closeAllMenus();
             }
         });
+
+        // Add event listener for setting camera name for unknowns
+        const setUnknownCameraBtn = document.getElementById('setUnknownCameraBtn');
+        if (setUnknownCameraBtn) {
+            setUnknownCameraBtn.addEventListener('click', () => {
+                const input = document.getElementById('unknownCameraInput');
+                const feedback = document.getElementById('unknownCameraFeedback');
+                const cameraName = input.value.trim();
+                if (!cameraName) {
+                    feedback.textContent = 'Please enter a camera name.';
+                    return;
+                }
+                const updated = this.photoProcessor.setCameraNameForUnknown(cameraName);
+                if (updated > 0) {
+                    feedback.textContent = `Set camera name for ${updated} photo(s).`;
+                    this.updatePhotoList(this.photoProcessor.photos);
+                    this.updateFolderPreview();
+                } else {
+                    feedback.textContent = 'No photos updated.';
+                }
+            });
+        }
     }
 
     initializeMenuSystem() {
@@ -585,6 +607,8 @@ Keyboard Shortcuts:
 
     updatePhotoList(photos) {
         const photoList = document.getElementById('photoList');
+        const unknownCameraSection = document.getElementById('unknownCameraSection');
+        if (!photoList || !unknownCameraSection) return;
         
         if (photos.length === 0) {
             photoList.innerHTML = '<div class="no-photos">No photos found</div>';
@@ -632,6 +656,16 @@ Keyboard Shortcuts:
         });
         
         this.updateExclusionStats();
+
+        // Check if there are any photos with 'Unknown Camera'
+        const unknownCount = photos.filter(p => p.metadata.camera === 'Unknown Camera' || !p.metadata.camera).length;
+        if (unknownCount > 0) {
+            unknownCameraSection.style.display = '';
+            document.getElementById('unknownCameraInput').value = '';
+            document.getElementById('unknownCameraFeedback').textContent = `${unknownCount} photo(s) with Unknown Camera.`;
+        } else {
+            unknownCameraSection.style.display = 'none';
+        }
     }
 
     updateFormHints() {
