@@ -2,7 +2,6 @@ const fs = require('fs').promises;
 const path = require('path');
 const glob = require('glob');
 const exifr = require('exifr');
-const { execFile } = require('child_process');
 const crypto = require('crypto');
 
 class PhotoProcessor {
@@ -489,163 +488,31 @@ class PhotoProcessor {
             const fileExtension = path.extname(filePath).toLowerCase();
             const isCR3 = fileExtension === '.cr3';
             
-            // Special handling for CR3 files
-            if (isCR3) {
-                console.log(`Processing CR3 file: ${path.basename(filePath)}`);
-                
-                // Try multiple parsing strategies for CR3
-                const strategies = [
-                    // Strategy 1: Full parsing with all segments
-                    {
-                        tiff: true,
-                        xmp: true,
-                        icc: true,
-                        iptc: true,
-                        jfif: true,
-                        ihdr: true,
-                        ifd0: true,
-                        ifd1: true,
-                        exif: true,
-                        gps: true,
-                        interop: true,
-                        makerNote: true,
-                        userComment: true,
-                        photoshop: true,
-                        composed: true,
-                        translateKeys: true,
-                        translateValues: true,
-                        reviveValues: true,
-                        mergeOutput: true,
-                        silentErrors: true
-                    },
-                    // Strategy 2: Basic TIFF/EXIF parsing
-                    {
-                        tiff: true,
-                        exif: true,
-                        makerNote: true,
-                        mergeOutput: true
-                    },
-                    // Strategy 3: Raw parsing
-                    {
-                        chunked: true,
-                        firstChunkSize: 512 * 1024,
-                        tiff: true,
-                        mergeOutput: true
-                    }
-                ];
-
-                let metadata = null;
-                let error = null;
-
-                for (let i = 0; i < strategies.length; i++) {
-                    try {
-                        console.log(`Attempting CR3 parsing strategy ${i + 1}`);
-                        metadata = await exifr.parse(filePath, strategies[i]);
-                        
-                        if (metadata && Object.keys(metadata).length > 0) {
-                            console.log(`Successfully extracted metadata using strategy ${i + 1}`);
-                            console.log('Extracted fields:', Object.keys(metadata));
-                            break;
-                        }
-                    } catch (e) {
-                        error = e;
-                        console.log(`Strategy ${i + 1} failed:`, e.message);
-                        continue;
-                    }
-                }
-
-                // If exifr failed, try exiftool as a fallback
-                if (!metadata || Object.keys(metadata).length === 0) {
-                    console.log('exifr failed for CR3, falling back to exiftool...');
-                    try {
-                        metadata = await this.extractCR3WithExiftool(filePath);
-                        if (metadata && Object.keys(metadata).length > 0) {
-                            console.log('Successfully extracted CR3 metadata with exiftool.');
-                        } else {
-                            throw new Error('exiftool returned no metadata');
-                        }
-                    } catch (exiftoolErr) {
-                        throw new Error(`Failed to extract metadata from CR3 file after all attempts: ${exiftoolErr?.message}`);
-                    }
-                }
-
-                const stats = await fs.stat(filePath);
-                return {
-                    camera: this.getCameraName(metadata),
-                    lens: this.getLensName(metadata),
-                    dateTime: this.getDateTime(metadata, stats),
-                    iso: this.getISOValue(metadata),
-                    focalLength: this.getFocalLength(metadata),
-                    aperture: this.getAperture(metadata),
-                    exposureTime: this.getExposureTime(metadata),
-                    flash: metadata?.Flash || null,
-                    orientation: metadata?.Orientation || null,
-                    width: metadata?.ImageWidth || metadata?.width || null,
-                    height: metadata?.ImageHeight || metadata?.height || null,
-                    fileSize: stats.size,
-                    lastModified: stats.mtime,
-                    rawMetadata: isCR3 ? metadata : null // Store raw metadata for debugging
-                };
-            }
-
-            // Regular handling for non-CR3 files
-            const exifrOptions = {
-                pick: [
-                    'Make', 'Model', 'DateTime', 'DateTimeOriginal', 'CreateDate',
-                    'LensModel', 'LensMake', 'FocalLength', 'FNumber', 'ISO',
-                    'ExposureTime', 'WhiteBalance', 'Flash', 'Orientation',
-                    // Additional fields for better CR3 support
-                    'ImageWidth', 'ImageHeight', 'Software', 'Artist', 'Copyright',
-                    'ExifVersion', 'ComponentsConfiguration', 'CompressedBitsPerPixel',
-                    'ExposureBiasValue', 'MaxApertureValue', 'MeteringMode',
-                    'LightSource', 'Flash', 'FocalLengthIn35mmFilm', 'SceneCaptureType',
-                    'GainControl', 'Contrast', 'Saturation', 'Sharpness', 'SubjectDistanceRange',
-                    // Canon-specific fields
-                    'CanonModelID', 'CanonFirmwareVersion', 'CanonOwnerName',
-                    'CanonCameraSerialNumber', 'CanonImageType', 'CanonFirmwareRevision',
-                    'CanonImageNumber', 'CanonBatteryLevel', 'CanonColorTemperature',
-                    'CanonFlashBatteryLevel', 'CanonCameraTemperature', 'CanonColorSpace',
-                    'CanonPictureStyle', 'CanonDigitalZoom', 'CanonContrast',
-                    'CanonSaturation', 'CanonSharpness', 'CanonISOSpeed',
-                    'CanonMeteringMode', 'CanonFocusMode', 'CanonAFPoint',
-                    'CanonExposureMode', 'CanonLensType', 'CanonLongFocalLength',
-                    'CanonShortFocalLength', 'CanonFocalUnits', 'CanonMaxAperture',
-                    'CanonMinAperture', 'CanonFlashActivity', 'CanonFlashBits',
-                    'CanonFocusContinuous', 'CanonAESetting', 'CanonImageStabilization',
-                    'CanonDisplayAperture', 'CanonZoomSourceWidth', 'CanonZoomTargetWidth',
-                    'CanonSpotMeteringMode', 'CanonPhotoEffect', 'CanonManualFlashOutput',
-                    'CanonColorTone', 'CanonSRawQuality', 'CanonFocalType',
-                    'CanonFocalLength', 'CanonFocalPlaneXSize', 'CanonFocalPlaneYSize',
-                    'CanonAutoExposureBracketing', 'CanonAEBracketValue', 'CanonControlMode',
-                    'CanonFocusDistanceUpper', 'CanonFocusDistanceLower', 'CanonFNumber',
-                    'CanonExposureTime', 'CanonMeasuredEV', 'CanonTargetAperture',
-                    'CanonTargetExposureTime', 'CanonExposureCompensation', 'CanonWhiteBalance',
-                    'CanonSlowShutter', 'CanonSequenceNumber', 'CanonOpticalZoomCode',
-                    'CanonCameraTemperature2', 'CanonFlashGuideNumber', 'CanonAFPointsInFocus1_6',
-                    'CanonFlashExposureCompensation', 'CanonAutoExposureBracketing',
-                    'CanonAEBracketValue', 'CanonControlMode', 'CanonFocusDistanceUpper',
-                    'CanonFocusDistanceLower', 'CanonFNumber', 'CanonExposureTime',
-                    'CanonMeasuredEV', 'CanonTargetAperture', 'CanonTargetExposureTime',
-                    'CanonExposureCompensation', 'CanonWhiteBalance', 'CanonSlowShutter',
-                    'CanonSequenceNumber', 'CanonOpticalZoomCode', 'CanonCameraTemperature2',
-                    'CanonFlashGuideNumber', 'CanonAFPointsInFocus1_6', 'CanonFlashExposureCompensation'
-                ]
-            };
+            let exifrOptions;
             
-            // For raw formats, especially CR3, add additional options for better compatibility
             if (isCR3) {
-                exifrOptions.tiff = true;
-                exifrOptions.raw = true;
-                exifrOptions.xmp = true;
-                exifrOptions.icc = true;
-                exifrOptions.iptc = true;
-                exifrOptions.jpeg = true;
-                exifrOptions.heic = true;
-                exifrOptions.png = true;
-                exifrOptions.webp = true;
-                exifrOptions.multiSegment = true; // Important for complex raw formats
-                exifrOptions.mergeOutput = true; // Merge all segments
-                exifrOptions.skip = false; // Don't skip any segments
+                // Simplified CR3 parsing options - exifr v7+ handles CR3 well with basic options
+                exifrOptions = {
+                    tiff: true,
+                    exif: true,
+                    gps: true,
+                    makerNote: true,
+                    mergeOutput: true,
+                    translateKeys: true,
+                    translateValues: true,
+                    reviveValues: true,
+                    silentErrors: false // We want to see CR3 errors for debugging
+                };
+            } else {
+                // Standard options for other formats
+                exifrOptions = {
+                    pick: [
+                        'Make', 'Model', 'DateTime', 'DateTimeOriginal', 'CreateDate',
+                        'LensModel', 'LensMake', 'FocalLength', 'FNumber', 'ISO',
+                        'ExposureTime', 'WhiteBalance', 'Flash', 'Orientation',
+                        'ImageWidth', 'ImageHeight'
+                    ]
+                };
             }
             
             const metadata = await exifr.parse(filePath, exifrOptions);
@@ -1582,22 +1449,6 @@ class PhotoProcessor {
         return results;
     }
 
-    async extractCR3WithExiftool(filePath) {
-        return new Promise((resolve, reject) => {
-            execFile('exiftool', ['-j', filePath], (error, stdout, stderr) => {
-                if (error) {
-                    console.error('exiftool error:', error, stderr);
-                    return reject(error);
-                }
-                try {
-                    const json = JSON.parse(stdout);
-                    resolve(json[0] || {});
-                } catch (parseErr) {
-                    reject(parseErr);
-                }
-            });
-        });
-    }
 
     async calculateMD5(filePath) {
         return new Promise((resolve, reject) => {
@@ -1629,8 +1480,10 @@ class PhotoProcessor {
     }
 }
 
-// Make available globally
-window.PhotoProcessor = PhotoProcessor;
+// Make available globally in browser environment
+if (typeof window !== 'undefined') {
+    window.PhotoProcessor = PhotoProcessor;
+}
 
 // Export the class for use in other modules if we're in a Node.js environment
 if (typeof module !== 'undefined' && module.exports) {
