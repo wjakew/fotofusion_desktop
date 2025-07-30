@@ -510,7 +510,8 @@ class PhotoProcessor {
                         'Make', 'Model', 'DateTime', 'DateTimeOriginal', 'CreateDate',
                         'LensModel', 'LensMake', 'FocalLength', 'FNumber', 'ISO',
                         'ExposureTime', 'WhiteBalance', 'Flash', 'Orientation',
-                        'ImageWidth', 'ImageHeight'
+                        'ImageWidth', 'ImageHeight', 'PixelXDimension', 'PixelYDimension',
+                        'ExifImageWidth', 'ExifImageHeight', 'width', 'height'
                     ]
                 };
             }
@@ -528,8 +529,8 @@ class PhotoProcessor {
                 exposureTime: this.getExposureTime(metadata),
                 flash: metadata?.Flash || null,
                 orientation: metadata?.Orientation || null,
-                width: metadata?.ImageWidth || metadata?.width || null,
-                height: metadata?.ImageHeight || metadata?.height || null,
+                width: this.getImageDimensions(metadata).width,
+                height: this.getImageDimensions(metadata).height,
                 fileSize: stats.size,
                 lastModified: stats.mtime
             };
@@ -654,6 +655,35 @@ class PhotoProcessor {
             }
         }
         return null;
+    }
+
+    getImageDimensions(metadata) {
+        if (!metadata) return { width: null, height: null };
+        
+        // Try multiple dimension field names
+        const widthFields = ['ImageWidth', 'width', 'PixelXDimension', 'ExifImageWidth'];
+        const heightFields = ['ImageHeight', 'height', 'PixelYDimension', 'ExifImageHeight'];
+        
+        let width = null;
+        let height = null;
+        
+        // Try to get width
+        for (const field of widthFields) {
+            if (metadata[field] !== undefined && metadata[field] !== null && metadata[field] > 0) {
+                width = metadata[field];
+                break;
+            }
+        }
+        
+        // Try to get height
+        for (const field of heightFields) {
+            if (metadata[field] !== undefined && metadata[field] !== null && metadata[field] > 0) {
+                height = metadata[field];
+                break;
+            }
+        }
+        
+        return { width, height };
     }
 
     generateFolderStructure(structureType, prefix = '', dateFormat = 'YYYY/MM/DD') {

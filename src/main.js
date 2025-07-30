@@ -178,7 +178,7 @@ ipcMain.handle('export-presets', async (event, presetIds) => {
       const presetsToExport = allPresets.filter(p => presetIds.includes(p.id));
       
       const exportData = {
-        version: '1.0.2',
+        version: '1.0.3',
         exportedAt: new Date().toISOString(),
         presets: presetsToExport
       };
