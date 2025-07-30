@@ -3,6 +3,7 @@ const path = require('path');
 const glob = require('glob');
 const exifr = require('exifr');
 const { execFile } = require('child_process');
+const crypto = require('crypto');
 
 class PhotoProcessor {
     constructor() {
@@ -1348,6 +1349,239 @@ class PhotoProcessor {
         return results;
     }
 
+    async verifyFilesMD5(destinationRoot, onProgress = null, startDateTime = null, endDateTime = null) {
+        const includedPhotos = this.getPhotosInDateTimeRange(startDateTime, endDateTime);
+        
+        // Create a map of expected files based on included folders first
+        const expectedFiles = new Map();
+        
+        for (const [folderPath, photos] of Object.entries(this.folderStructure)) {
+            const normalizedPath = folderPath.split(path.sep).join('/');
+            const isExcluded = this.excludedFolders.has(folderPath) || this.excludedFolders.has(normalizedPath);
+            
+            // Skip excluded folders
+            if (isExcluded) {
+                continue;
+            }
+            
+            // Filter out individually excluded photos from this folder
+            // Also filter by date/time range
+            const includedPhotosInFolder = photos.filter(photo => {
+                // Check if photo is excluded
+                if (this.excludedPhotos.has(photo.id)) {
+                    return false;
+                }
+                
+                // Check date/time range if provided
+                if (startDateTime || endDateTime) {
+                    const photoDateTime = new Date(photo.metadata.dateTime);
+                    if (isNaN(photoDateTime)) {
+                        return false;
+                    }
+                    if (startDateTime && photoDateTime < new Date(startDateTime)) {
+                        return false;
+                    }
+                    if (endDateTime && photoDateTime > new Date(endDateTime)) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+            
+            // Process included photos
+            for (const photo of includedPhotosInFolder) {
+                const targetFolder = path.join(destinationRoot, folderPath);
+                const preserveOriginal = true; // Assuming we're checking with original filenames
+                const filename = preserveOriginal ? photo.filename : this.generateNewFilename(photo, 0);
+                const targetPath = path.join(targetFolder, filename);
+                
+                expectedFiles.set(targetPath, {
+                    sourceFile: photo.path,
+                    sourceSize: photo.size,
+                    sourceId: photo.id
+                });
+            }
+        }
+
+        // Initialize results object with correct total count
+        const results = {
+            total: expectedFiles.size,
+            verified: 0,
+            failed: 0,
+            missing: 0,
+            sizeMatch: 0,
+            sizeMismatch: 0,
+            md5Match: 0,
+            md5Mismatch: 0,
+            errors: [],
+            startTime: new Date(),
+            endTime: null,
+            dateTimeFilter: {
+                startDateTime: startDateTime,
+                endDateTime: endDateTime
+            }
+        };
+
+        let processedCount = 0;
+
+        // Verify each expected file
+        for (const [targetPath, fileInfo] of expectedFiles) {
+            try {
+                processedCount++;
+                
+                if (onProgress) {
+                    onProgress({
+                        current: processedCount,
+                        total: expectedFiles.size,
+                        filename: path.basename(targetPath),
+                        action: 'verifying_md5',
+                        phase: 'checking_file',
+                        verified: results.verified,
+                        failed: results.failed
+                    });
+                }
+
+                // Check if file exists at target path
+                const fileStats = await fs.stat(targetPath).catch(() => null);
+                
+                if (!fileStats) {
+                    results.missing++;
+                    results.failed++;
+                    results.errors.push({
+                        file: targetPath,
+                        error: 'File is missing at destination'
+                    });
+                    
+                    if (onProgress) {
+                        onProgress({
+                            current: processedCount,
+                            total: expectedFiles.size,
+                            filename: path.basename(targetPath),
+                            action: 'verifying_md5',
+                            phase: 'file_missing',
+                            verified: results.verified,
+                            failed: results.failed
+                        });
+                    }
+                    continue;
+                }
+                
+                // Compare file sizes first (quick check)
+                if (fileStats.size === fileInfo.sourceSize) {
+                    results.sizeMatch++;
+                } else {
+                    results.sizeMismatch++;
+                    results.failed++;
+                    results.errors.push({
+                        file: targetPath,
+                        error: `Size mismatch: expected ${fileInfo.sourceSize} bytes, got ${fileStats.size} bytes`
+                    });
+                    
+                    if (onProgress) {
+                        onProgress({
+                            current: processedCount,
+                            total: expectedFiles.size,
+                            filename: path.basename(targetPath),
+                            action: 'verifying_md5',
+                            phase: 'size_mismatch',
+                            verified: results.verified,
+                            failed: results.failed
+                        });
+                    }
+                    continue;
+                }
+
+                // Calculate MD5 hashes
+                if (onProgress) {
+                    onProgress({
+                        current: processedCount,
+                        total: expectedFiles.size,
+                        filename: path.basename(targetPath),
+                        action: 'verifying_md5',
+                        phase: 'calculating_source_md5',
+                        verified: results.verified,
+                        failed: results.failed
+                    });
+                }
+
+                const sourceMD5 = await this.calculateMD5(fileInfo.sourceFile);
+                
+                if (onProgress) {
+                    onProgress({
+                        current: processedCount,
+                        total: expectedFiles.size,
+                        filename: path.basename(targetPath),
+                        action: 'verifying_md5',
+                        phase: 'calculating_target_md5',
+                        verified: results.verified,
+                        failed: results.failed
+                    });
+                }
+
+                const targetMD5 = await this.calculateMD5(targetPath);
+
+                // Compare MD5 hashes
+                if (sourceMD5 === targetMD5) {
+                    results.md5Match++;
+                    results.verified++;
+                    
+                    if (onProgress) {
+                        onProgress({
+                            current: processedCount,
+                            total: expectedFiles.size,
+                            filename: path.basename(targetPath),
+                            action: 'verifying_md5',
+                            phase: 'md5_match',
+                            verified: results.verified,
+                            failed: results.failed
+                        });
+                    }
+                } else {
+                    results.md5Mismatch++;
+                    results.failed++;
+                    results.errors.push({
+                        file: targetPath,
+                        error: `MD5 mismatch: source=${sourceMD5}, target=${targetMD5}`
+                    });
+                    
+                    if (onProgress) {
+                        onProgress({
+                            current: processedCount,
+                            total: expectedFiles.size,
+                            filename: path.basename(targetPath),
+                            action: 'verifying_md5',
+                            phase: 'md5_mismatch',
+                            verified: results.verified,
+                            failed: results.failed
+                        });
+                    }
+                }
+            } catch (error) {
+                results.failed++;
+                results.errors.push({
+                    file: targetPath,
+                    error: `MD5 verification error: ${error.message}`
+                });
+                
+                if (onProgress) {
+                    onProgress({
+                        current: processedCount,
+                        total: expectedFiles.size,
+                        filename: path.basename(targetPath),
+                        action: 'verifying_md5',
+                        phase: 'error',
+                        verified: results.verified,
+                        failed: results.failed
+                    });
+                }
+            }
+        }
+
+        results.endTime = new Date();
+        return results;
+    }
+
     async extractCR3WithExiftool(filePath) {
         return new Promise((resolve, reject) => {
             execFile('exiftool', ['-j', filePath], (error, stdout, stderr) => {
@@ -1362,6 +1596,17 @@ class PhotoProcessor {
                     reject(parseErr);
                 }
             });
+        });
+    }
+
+    async calculateMD5(filePath) {
+        return new Promise((resolve, reject) => {
+            const hash = crypto.createHash('md5');
+            const stream = require('fs').createReadStream(filePath);
+            
+            stream.on('error', reject);
+            stream.on('data', chunk => hash.update(chunk));
+            stream.on('end', () => resolve(hash.digest('hex')));
         });
     }
 

@@ -298,6 +298,10 @@ class FotoFusionApp {
             this.verifyFiles();
         });
 
+        document.getElementById('verifyFilesMD5Btn').addEventListener('click', () => {
+            this.verifyFilesMD5();
+        });
+
         // Close modals when clicking backdrop
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', (e) => {
@@ -1692,6 +1696,261 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
             this.isProcessing = false;
             this.updateButtons();
         }
+    }
+
+    async verifyFilesMD5() {
+        if (!this.destinationPath) {
+            this.log('No destination folder selected', 'error');
+            return;
+        }
+
+        this.setProgress(0, 'Starting MD5 verification...');
+        this.isProcessing = true;
+        this.updateButtons();
+
+        try {
+            const verificationDiv = document.getElementById('verificationStatus');
+            verificationDiv.innerHTML = this.createMD5VerificationUI();
+            verificationDiv.style.display = 'block';
+            
+            // Get date/time range filters (same as used for copying)
+            const startDateTime = document.getElementById('startDateTime').value;
+            const endDateTime = document.getElementById('endDateTime').value;
+
+            // Update UI elements
+            const currentFileElement = document.getElementById('md5-current-file');
+            const progressBarElement = document.getElementById('md5-progress-bar');
+            const phaseElement = document.getElementById('md5-phase');
+            const statsElements = {
+                processed: document.getElementById('md5-processed'),
+                verified: document.getElementById('md5-verified'),
+                failed: document.getElementById('md5-failed')
+            };
+
+            let currentStats = { processed: 0, verified: 0, failed: 0 };
+
+            // Verify files with MD5
+            const results = await this.photoProcessor.verifyFilesMD5(
+                this.destinationPath,
+                (progress) => {
+                    const percentage = Math.round((progress.current / progress.total) * 100);
+                    
+                    // Update progress bar
+                    progressBarElement.style.width = `${percentage}%`;
+                    
+                    // Update current file
+                    currentFileElement.textContent = progress.filename;
+                    
+                    // Update phase description
+                    let phaseText = '';
+                    switch (progress.phase) {
+                        case 'checking_file':
+                            phaseText = '🔍 Checking file existence...';
+                            break;
+                        case 'calculating_source_md5':
+                            phaseText = '🔢 Calculating source MD5...';
+                            break;
+                        case 'calculating_target_md5':
+                            phaseText = '🔢 Calculating target MD5...';
+                            break;
+                        case 'md5_match':
+                            phaseText = '✅ MD5 verified successfully!';
+                            break;
+                        case 'md5_mismatch':
+                            phaseText = '❌ MD5 mismatch detected!';
+                            break;
+                        case 'file_missing':
+                            phaseText = '🔍 File missing at destination!';
+                            break;
+                        case 'size_mismatch':
+                            phaseText = '📏 File size mismatch detected!';
+                            break;
+                        case 'error':
+                            phaseText = '⚠️ Verification error occurred!';
+                            break;
+                        default:
+                            phaseText = '⚙️ Processing...';
+                    }
+                    phaseElement.textContent = phaseText;
+                    
+                    // Update main progress
+                    this.setProgress(percentage, `MD5 Verification: ${progress.filename} (${progress.current}/${progress.total})`);
+                    
+                    // Update live stats (estimate based on progress)
+                    const estimatedProcessed = progress.current;
+                    statsElements.processed.textContent = estimatedProcessed;
+                    
+                    // Update verified/failed counts if available in progress
+                    if (progress.verified !== undefined) {
+                        statsElements.verified.textContent = progress.verified;
+                    }
+                    if (progress.failed !== undefined) {
+                        statsElements.failed.textContent = progress.failed;
+                    }
+                },
+                startDateTime || null,
+                endDateTime || null
+            );
+
+            // Calculate duration
+            const durationSeconds = Math.round((results.endTime - results.startTime) / 1000);
+            const durationText = durationSeconds > 60 ? 
+                `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s` : 
+                `${durationSeconds}s`;
+            
+            // Show final verification results
+            const resultHTML = this.createMD5ResultsHTML(results, durationText);
+            verificationDiv.innerHTML = resultHTML;
+            this.setProgress(100, 'MD5 verification complete');
+            
+        } catch (error) {
+            console.error('MD5 Verification error:', error);
+            document.getElementById('verificationStatus').innerHTML = `
+                <div class="verification-error">
+                    <h4>❌ MD5 Verification Failed</h4>
+                    <p>Error during MD5 verification: ${error.message || error}</p>
+                </div>
+            `;
+        } finally {
+            this.isProcessing = false;
+            this.updateButtons();
+        }
+    }
+
+    createMD5VerificationUI() {
+        return `
+            <div class="md5-verification-container">
+                <div class="md5-header">
+                    <h4>🔐 MD5 Hash Verification</h4>
+                    <div class="md5-description">Performing cryptographic verification of file integrity</div>
+                </div>
+                
+                <div class="md5-progress-section">
+                    <div class="md5-current-file-container">
+                        <div class="md5-current-file-label">Current File:</div>
+                        <div class="md5-current-file" id="md5-current-file">Initializing...</div>
+                    </div>
+                    
+                    <div class="md5-progress-bar-container">
+                        <div class="md5-progress-bar-track">
+                            <div class="md5-progress-bar" id="md5-progress-bar"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="md5-phase" id="md5-phase">🚀 Starting verification...</div>
+                </div>
+                
+                <div class="md5-stats-section">
+                    <div class="md5-stat-item">
+                        <div class="md5-stat-value" id="md5-processed">0</div>
+                        <div class="md5-stat-label">Processed</div>
+                    </div>
+                    <div class="md5-stat-item">
+                        <div class="md5-stat-value" id="md5-verified">0</div>
+                        <div class="md5-stat-label">Verified</div>
+                    </div>
+                    <div class="md5-stat-item">
+                        <div class="md5-stat-value" id="md5-failed">0</div>
+                        <div class="md5-stat-label">Failed</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    createMD5ResultsHTML(results, durationText) {
+        const successRate = results.total > 0 ? Math.round((results.verified / results.total) * 100) : 0;
+        const isFullyVerified = results.verified === results.total && results.failed === 0;
+        
+        return `
+            <div class="md5-results-container">
+                <div class="md5-results-header">
+                    <h4>${isFullyVerified ? '✅ MD5 Verification Successful' : '⚠️ MD5 Verification Issues Found'}</h4>
+                    <div class="md5-success-rate ${isFullyVerified ? 'success' : 'warning'}">
+                        ${successRate}% Success Rate
+                    </div>
+                </div>
+                
+                <div class="md5-results-grid">
+                    <div class="md5-result-item">
+                        <div class="md5-result-icon">📊</div>
+                        <div class="md5-result-content">
+                            <div class="md5-result-value">${results.verified}/${results.total}</div>
+                            <div class="md5-result-label">Files Verified</div>
+                        </div>
+                    </div>
+                    
+                    <div class="md5-result-item">
+                        <div class="md5-result-icon">✅</div>
+                        <div class="md5-result-content">
+                            <div class="md5-result-value">${results.md5Match}</div>
+                            <div class="md5-result-label">MD5 Match</div>
+                        </div>
+                    </div>
+                    
+                    ${results.md5Mismatch > 0 ? `
+                    <div class="md5-result-item warning">
+                        <div class="md5-result-icon">❌</div>
+                        <div class="md5-result-content">
+                            <div class="md5-result-value">${results.md5Mismatch}</div>
+                            <div class="md5-result-label">MD5 Mismatch</div>
+                        </div>
+                    </div>` : ''}
+                    
+                    <div class="md5-result-item">
+                        <div class="md5-result-icon">📏</div>
+                        <div class="md5-result-content">
+                            <div class="md5-result-value">${results.sizeMatch}</div>
+                            <div class="md5-result-label">Size Match</div>
+                        </div>
+                    </div>
+                    
+                    ${results.sizeMismatch > 0 ? `
+                    <div class="md5-result-item warning">
+                        <div class="md5-result-icon">⚠️</div>
+                        <div class="md5-result-content">
+                            <div class="md5-result-value">${results.sizeMismatch}</div>
+                            <div class="md5-result-label">Size Mismatch</div>
+                        </div>
+                    </div>` : ''}
+                    
+                    ${results.missing > 0 ? `
+                    <div class="md5-result-item error">
+                        <div class="md5-result-icon">🔍</div>
+                        <div class="md5-result-content">
+                            <div class="md5-result-value">${results.missing}</div>
+                            <div class="md5-result-label">Missing Files</div>
+                        </div>
+                    </div>` : ''}
+                    
+                    <div class="md5-result-item">
+                        <div class="md5-result-icon">⏱️</div>
+                        <div class="md5-result-content">
+                            <div class="md5-result-value">${durationText}</div>
+                            <div class="md5-result-label">Duration</div>
+                        </div>
+                    </div>
+                </div>
+                
+                ${results.errors.length > 0 ? `
+                <div class="md5-errors-section">
+                    <h5>🚨 Issues Found (${results.errors.length}):</h5>
+                    <div class="md5-error-list">
+                        ${results.errors.slice(0, 5).map(error => `
+                            <div class="md5-error-item">
+                                <div class="md5-error-file">📄 ${error.file.split(/[/\\]/).pop()}</div>
+                                <div class="md5-error-message">${error.error}</div>
+                            </div>
+                        `).join('')}
+                        ${results.errors.length > 5 ? `
+                        <div class="md5-error-item more">
+                            <div class="md5-error-message">... and ${results.errors.length - 5} more issues</div>
+                        </div>` : ''}
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `;
     }
 
     savePresetToStorage(preset) {
