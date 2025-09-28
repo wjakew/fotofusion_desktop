@@ -686,31 +686,59 @@ class PhotoProcessor {
         return { width, height };
     }
 
-    generateFolderStructure(structureType, prefix = '', dateFormat = 'YYYY/MM/DD') {
+    generateFolderStructure(structureType, prefix = '', dateFormat = 'YYYY/MM/DD', startDateTime = null, endDateTime = null) {
         this.initializeExclusions();
-        
+
         // Store current exclusions before regenerating structure
         const currentExcludedFolders = new Set(this.excludedFolders);
-        
+
         // Generate new folder structure
         this.folderStructure = {};
-        
-        for (const photo of this.photos) {
+
+        // Filter photos by date range if provided
+        let photosToProcess = this.photos;
+        if (startDateTime || endDateTime) {
+            photosToProcess = this.photos.filter(photo => {
+                const photoDateTime = new Date(photo.metadata.dateTime);
+
+                // Skip photos with invalid dates
+                if (isNaN(photoDateTime)) {
+                    return false;
+                }
+
+                // Check if photo is within the specified range
+                if (startDateTime && photoDateTime < new Date(startDateTime)) {
+                    return false;
+                }
+
+                if (endDateTime && photoDateTime > new Date(endDateTime)) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            console.log(`Filtered ${photosToProcess.length} photos from ${this.photos.length} total photos using date range`);
+            if (startDateTime) console.log(`Start date: ${startDateTime}`);
+            if (endDateTime) console.log(`End date: ${endDateTime}`);
+        }
+
+        for (const photo of photosToProcess) {
             const folderPath = this.generateFolderPath(photo, structureType, prefix, dateFormat);
-            
+
             if (!this.folderStructure[folderPath]) {
                 this.folderStructure[folderPath] = [];
             }
-            
+
             this.folderStructure[folderPath].push(photo);
         }
-        
+
         // Validate and clean up exclusions after structure regeneration
         this.validateExclusions();
-        
+
         console.log(`Generated folder structure with ${Object.keys(this.folderStructure).length} folders`);
         console.log(`Preserved ${this.excludedFolders.size} excluded folders`);
-        
+
         return this.folderStructure;
     }
 

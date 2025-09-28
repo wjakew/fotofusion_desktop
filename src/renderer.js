@@ -84,6 +84,15 @@ class FotoFusionApp {
             this.updateFolderPreview();
         });
 
+        // Date/time range changes
+        document.getElementById('startDateTime').addEventListener('change', () => {
+            this.updateFolderPreview();
+        });
+
+        document.getElementById('endDateTime').addEventListener('change', () => {
+            this.updateFolderPreview();
+        });
+
         // Selection controls
         document.getElementById('selectAllPhotosBtn').addEventListener('click', () => {
             this.selectAllPhotos(true);
@@ -545,18 +554,16 @@ Keyboard Shortcuts:
             const endDateTime = document.getElementById('endDateTime').value;
 
             this.log(`Starting copy with structure: ${structureType}, date format: ${dateFormat}`, 'info');
-            
+
             // Log date/time filter information if provided
             if (startDateTime || endDateTime) {
                 this.log(`Date/time filter applied: ${startDateTime || 'any'} to ${endDateTime || 'any'}`, 'info');
             }
-            
-            // IMPORTANT: Don't regenerate folder structure here - it would reset exclusions!
-            // The structure should already exist from the preview
-            if (Object.keys(this.photoProcessor.folderStructure).length === 0) {
-                this.log('ERROR: No folder structure found! This should not happen.', 'error');
-                this.photoProcessor.generateFolderStructure(structureType, prefix, dateFormat);
-            }
+
+            // Regenerate folder structure with current date range to ensure consistency
+            // This ensures the copy process uses only photos within the selected date range
+            this.photoProcessor.generateFolderStructure(structureType, prefix, dateFormat, startDateTime, endDateTime);
+            this.log(`Regenerated folder structure with ${Object.keys(this.photoProcessor.folderStructure).length} folders for date range`, 'info');
             
             // Debug exclusion state before copying
             console.log('=== PRE-COPY EXCLUSION STATE ===');
@@ -788,7 +795,7 @@ Keyboard Shortcuts:
 
     updateFolderPreview() {
         const preview = document.getElementById('folderPreview');
-        
+
         if (!this.sourcePath || !this.destinationPath || this.photoProcessor.photos.length === 0) {
             preview.innerHTML = '<div class="no-preview">Select source and destination, then scan for photos to preview structure</div>';
             return;
@@ -797,9 +804,11 @@ Keyboard Shortcuts:
         const structureType = document.getElementById('folderStructure').value;
         const prefix = document.getElementById('folderPrefix').value.trim();
         const dateFormat = document.getElementById('dateFormat').value;
-        
-        // Generate structure for preview
-        const structure = this.photoProcessor.generateFolderStructure(structureType, prefix, dateFormat);
+        const startDateTime = document.getElementById('startDateTime').value || null;
+        const endDateTime = document.getElementById('endDateTime').value || null;
+
+        // Generate structure for preview with date range filtering
+        const structure = this.photoProcessor.generateFolderStructure(structureType, prefix, dateFormat, startDateTime, endDateTime);
         
         let html = '<div class="folder-tree">';
         html += `<div class="folder-item folder">📁 ${this.destinationPath}</div>`;
