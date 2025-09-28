@@ -469,6 +469,15 @@ input[type="checkbox"] {
     font-weight: bold;
 }
 
+.photo-item.exists-in-destination {
+    border-left: 3px solid #2ecc71;
+    background: rgba(46, 204, 113, 0.05);
+}
+
+.photo-item.exists-in-destination .photo-filename {
+    color: #2ecc71;
+}
+
 .photo-checkbox {
     width: 14px;
     height: 14px;
@@ -580,6 +589,15 @@ input[type="checkbox"] {
     color: #666;
     margin-left: auto;
     font-weight: normal;
+}
+
+.folder-item.folder.has-existing {
+    color: #2ecc71;
+}
+
+.folder-item.folder.has-existing .folder-stats {
+    color: #27ae60;
+    font-weight: 500;
 }
 
 .no-preview {

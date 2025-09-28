@@ -22,13 +22,13 @@ class PhotoProcessor {
         this.excludedFolders = new Set(); // Track excluded folders
     }
 
-    async scanFolder(folderPath, onProgress = null) {
+    async scanFolder(folderPath, onProgress = null, destinationPath = null, structureType = 'date', prefix = '', dateFormat = 'YYYY/MM/DD') {
         this.photos = [];
         this.excludedPhotos.clear();
         this.excludedFolders.clear();
         this.folderStructure = {};
-        
-        const patterns = this.supportedFormats.map(format => 
+
+        const patterns = this.supportedFormats.map(format =>
             path.join(folderPath, '**', format).replace(/\\/g, '/')
         );
 
@@ -50,8 +50,21 @@ class PhotoProcessor {
                     path: filePath,
                     filename: path.basename(filePath),
                     metadata: metadata,
-                    size: (await fs.stat(filePath)).size
+                    size: (await fs.stat(filePath)).size,
+                    existsInDestination: false // Initialize existence flag
                 };
+
+                // Check if photo exists in destination (if destination is provided)
+                if (destinationPath) {
+                    photo.existsInDestination = await this.checkPhotoExistsInDestination(
+                        photo,
+                        destinationPath,
+                        structureType,
+                        prefix,
+                        dateFormat
+                    );
+                }
+
                 this.photos.push(photo);
 
                 if (onProgress) {
@@ -67,6 +80,22 @@ class PhotoProcessor {
         }
 
         return this.photos;
+    }
+
+    async checkPhotoExistsInDestination(photo, destinationPath, structureType, prefix, dateFormat) {
+        try {
+            // Generate the expected folder path for this photo
+            const folderPath = this.generateFolderPath(photo, structureType, prefix, dateFormat);
+            const targetFolder = path.join(destinationPath, folderPath);
+            const targetFilePath = path.join(targetFolder, photo.filename);
+
+            // Check if file exists at the expected destination
+            await fs.access(targetFilePath);
+            return true; // File exists
+        } catch (error) {
+            // File doesn't exist or access error
+            return false;
+        }
     }
 
     // Exclusion management methods

@@ -510,19 +510,38 @@ Keyboard Shortcuts:
         this.updateButtons();
 
         try {
-            const photos = await this.photoProcessor.scanFolder(this.sourcePath, (progress) => {
-                const percentage = Math.round((progress.current / progress.total) * 100);
-                this.setProgress(percentage, `Scanning: ${progress.filename} (${progress.current}/${progress.total})`);
-            });
+            // Get current settings for destination checking
+            const structureType = document.getElementById('folderStructure').value;
+            const prefix = document.getElementById('folderPrefix').value.trim();
+            const dateFormat = document.getElementById('dateFormat').value;
+
+            const photos = await this.photoProcessor.scanFolder(
+                this.sourcePath,
+                (progress) => {
+                    const percentage = Math.round((progress.current / progress.total) * 100);
+                    this.setProgress(percentage, `Scanning: ${progress.filename} (${progress.current}/${progress.total})`);
+                },
+                this.destinationPath, // Pass destination path for existence checking
+                structureType,
+                prefix,
+                dateFormat
+            );
 
             // Initialize exclusion stats after scan
             this.updatePhotoList(photos);
             this.updateFolderPreview();
             // Count unique photo names for UI display
             const uniquePhotoCount = this.photoProcessor.getUniquePhotoCount(photos);
-            this.log(`Scan complete: Found ${uniquePhotoCount} photos (${photos.length} files)`, 'success');
+
+            // Count existing photos for logging
+            const existingPhotos = photos.filter(p => p.existsInDestination).length;
+            const logMessage = existingPhotos > 0
+                ? `Scan complete: Found ${uniquePhotoCount} photos (${photos.length} files), ${existingPhotos} already exist in destination`
+                : `Scan complete: Found ${uniquePhotoCount} photos (${photos.length} files)`;
+
+            this.log(logMessage, 'success');
             this.setProgress(100, `Scan complete: ${uniquePhotoCount} photos found`);
-            
+
             if (photos.length > 0 && this.destinationPath) {
                 document.getElementById('startCopyBtn').disabled = false;
             }
@@ -633,11 +652,17 @@ Keyboard Shortcuts:
         photos.forEach((photo, index) => {
             const item = document.createElement('div');
             const isExcluded = this.photoProcessor.isPhotoExcluded(photo.id);
-            item.className = `photo-item ${isExcluded ? 'excluded' : ''}`;
-            
+            const existsInDest = photo.existsInDestination || false;
+
+            let photoClasses = 'photo-item';
+            if (isExcluded) photoClasses += ' excluded';
+            if (existsInDest) photoClasses += ' exists-in-destination';
+
+            item.className = photoClasses;
+
             const sizeKB = Math.round(photo.metadata.fileSize / 1024);
             const date = new Date(photo.metadata.dateTime).toLocaleDateString();
-            
+
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.className = 'photo-checkbox';
@@ -646,16 +671,22 @@ Keyboard Shortcuts:
                 e.stopPropagation();
                 this.togglePhotoSelection(photo.id);
             });
-            
+
             const photoInfo = document.createElement('div');
             photoInfo.className = 'photo-info';
+
+            const existsIndicator = existsInDest ? ' ✓' : '';
+            const metadataText = existsInDest
+                ? `${photo.metadata.camera} | ${photo.metadata.lens} | ${date} | ${sizeKB}KB | Already exists`
+                : `${photo.metadata.camera} | ${photo.metadata.lens} | ${date} | ${sizeKB}KB`;
+
             photoInfo.innerHTML = `
-                <div class="photo-filename">${photo.filename}</div>
+                <div class="photo-filename">${photo.filename}${existsIndicator}</div>
                 <div class="photo-metadata">
-                    ${photo.metadata.camera} | ${photo.metadata.lens} | ${date} | ${sizeKB}KB
+                    ${metadataText}
                 </div>
             `;
-            
+
             item.appendChild(checkbox);
             item.appendChild(photoInfo);
             
@@ -897,6 +928,10 @@ Keyboard Shortcuts:
             const uniqueIncludedCount = this.photoProcessor.getUniquePhotoCount(includedPhotos);
             const uniqueTotalCount = this.photoProcessor.getUniquePhotoCount(photos);
 
+            // Count existing photos in this folder
+            const existingPhotos = photos.filter(photo => photo.existsInDestination && !this.photoProcessor.isPhotoExcluded(photo.id));
+            const existingCount = this.photoProcessor.getUniquePhotoCount(existingPhotos);
+
             // Create folder hierarchy
             folders.forEach((folder, index) => {
                 const indent = '  '.repeat(index + 1);
@@ -904,16 +939,25 @@ Keyboard Shortcuts:
                 const isFolderExcluded = this.photoProcessor.isFolderExcluded(folderPath);
 
                 if (index === folders.length - 1) {
-                    // This is the final folder - add checkbox and stats
+                    // This is the final folder - add checkbox and stats with existence info
+                    const hasExistingPhotos = existingCount > 0;
+                    const existingIndicator = hasExistingPhotos ? ' ✓' : '';
+                    const folderClasses = `folder ${isFolderExcluded ? 'excluded' : ''} ${hasExistingPhotos ? 'has-existing' : ''}`;
+
+                    let statsText = `${uniqueIncludedCount}/${uniqueTotalCount} photos`;
+                    if (hasExistingPhotos) {
+                        statsText += ` (${existingCount} exist)`;
+                    }
+
                     html += `
-                        <div class="folder-item folder ${isFolderExcluded ? 'excluded' : ''}"
+                        <div class="folder-item ${folderClasses}"
                              data-folder-path="${folderPath}">
                             ${indent}
                             <input type="checkbox" class="folder-checkbox"
                                    ${!isFolderExcluded ? 'checked' : ''}
                                    data-folder-path="${folderPath}">
-                            📁 ${folder}
-                            <span class="folder-stats">${uniqueIncludedCount}/${uniqueTotalCount} photos</span>
+                            📁 ${folder}${existingIndicator}
+                            <span class="folder-stats">${statsText}</span>
                         </div>
                     `;
                 } else {
