@@ -793,6 +793,78 @@ Keyboard Shortcuts:
         }
     }
 
+    selectAllPhotos(select) {
+        if (!this.photoProcessor || this.photoProcessor.photos.length === 0) {
+            return;
+        }
+
+        for (const photo of this.photoProcessor.photos) {
+            if (select && this.photoProcessor.isPhotoExcluded(photo.id)) {
+                // Include photo (remove from exclusion)
+                this.photoProcessor.togglePhotoExclusion(photo.id);
+            } else if (!select && !this.photoProcessor.isPhotoExcluded(photo.id)) {
+                // Exclude photo (add to exclusion)
+                this.photoProcessor.togglePhotoExclusion(photo.id);
+            }
+        }
+
+        this.updatePhotoList(this.photoProcessor.photos);
+        this.updateFolderPreview();
+
+        const action = select ? 'included' : 'excluded';
+        this.log(`All photos ${action}`, 'info');
+    }
+
+    invertPhotoSelection() {
+        if (!this.photoProcessor || this.photoProcessor.photos.length === 0) {
+            return;
+        }
+
+        for (const photo of this.photoProcessor.photos) {
+            this.photoProcessor.togglePhotoExclusion(photo.id);
+        }
+
+        this.updatePhotoList(this.photoProcessor.photos);
+        this.updateFolderPreview();
+        this.log('Photo selection inverted', 'info');
+    }
+
+    selectAllFolders(select) {
+        if (!this.photoProcessor || Object.keys(this.photoProcessor.folderStructure).length === 0) {
+            return;
+        }
+
+        for (const folderPath of Object.keys(this.photoProcessor.folderStructure)) {
+            const isCurrentlyExcluded = this.photoProcessor.isFolderExcluded(folderPath);
+
+            if (select && isCurrentlyExcluded) {
+                // Include folder (remove from exclusion)
+                this.photoProcessor.toggleFolderExclusion(folderPath);
+            } else if (!select && !isCurrentlyExcluded) {
+                // Exclude folder (add to exclusion)
+                this.photoProcessor.toggleFolderExclusion(folderPath);
+            }
+        }
+
+        this.updateFolderPreview();
+
+        const action = select ? 'included' : 'excluded';
+        this.log(`All folders ${action}`, 'info');
+    }
+
+    toggleFolderSelection(folderPath) {
+        if (!folderPath || !this.photoProcessor) {
+            console.error('No folder path provided or photoProcessor not available');
+            return;
+        }
+
+        const isExcluded = this.photoProcessor.toggleFolderExclusion(folderPath);
+        this.updateFolderPreview();
+
+        const action = isExcluded ? 'excluded' : 'included';
+        this.log(`Folder ${action}: ${folderPath}`, 'info');
+    }
+
     updateFolderPreview() {
         const preview = document.getElementById('folderPreview');
 
