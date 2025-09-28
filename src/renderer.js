@@ -518,8 +518,10 @@ Keyboard Shortcuts:
             // Initialize exclusion stats after scan
             this.updatePhotoList(photos);
             this.updateFolderPreview();
-            this.log(`Scan complete: Found ${photos.length} photos`, 'success');
-            this.setProgress(100, `Scan complete: ${photos.length} photos found`);
+            // Count unique photo names for UI display
+            const uniquePhotoCount = this.photoProcessor.getUniquePhotoCount(photos);
+            this.log(`Scan complete: Found ${uniquePhotoCount} photos (${photos.length} files)`, 'success');
+            this.setProgress(100, `Scan complete: ${uniquePhotoCount} photos found`);
             
             if (photos.length > 0 && this.destinationPath) {
                 document.getElementById('startCopyBtn').disabled = false;
@@ -890,24 +892,28 @@ Keyboard Shortcuts:
             const isExcluded = this.photoProcessor.isFolderExcluded(folderPath);
             const excludedPhotos = photos.filter(photo => this.photoProcessor.isPhotoExcluded(photo.id));
             const includedPhotos = photos.filter(photo => !this.photoProcessor.isPhotoExcluded(photo.id));
-            
+
+            // Count unique photo names for display
+            const uniqueIncludedCount = this.photoProcessor.getUniquePhotoCount(includedPhotos);
+            const uniqueTotalCount = this.photoProcessor.getUniquePhotoCount(photos);
+
             // Create folder hierarchy
             folders.forEach((folder, index) => {
                 const indent = '  '.repeat(index + 1);
                 const currentFolderPath = folders.slice(0, index + 1).join(require('path').sep);
                 const isFolderExcluded = this.photoProcessor.isFolderExcluded(folderPath);
-                
+
                 if (index === folders.length - 1) {
                     // This is the final folder - add checkbox and stats
                     html += `
-                        <div class="folder-item folder ${isFolderExcluded ? 'excluded' : ''}" 
+                        <div class="folder-item folder ${isFolderExcluded ? 'excluded' : ''}"
                              data-folder-path="${folderPath}">
                             ${indent}
-                            <input type="checkbox" class="folder-checkbox" 
-                                   ${!isFolderExcluded ? 'checked' : ''} 
+                            <input type="checkbox" class="folder-checkbox"
+                                   ${!isFolderExcluded ? 'checked' : ''}
                                    data-folder-path="${folderPath}">
                             📁 ${folder}
-                            <span class="folder-stats">${includedPhotos.length}/${photos.length} photos</span>
+                            <span class="folder-stats">${uniqueIncludedCount}/${uniqueTotalCount} photos</span>
                         </div>
                     `;
                 } else {
@@ -931,12 +937,16 @@ Keyboard Shortcuts:
                 
                 if (excludedPhotos.length > 0) {
                     const indent = '  '.repeat(folders.length + 1);
-                    html += `<div class="folder-item file excluded">${indent}... and ${excludedPhotos.length} excluded photos</div>`;
+                    const uniqueExcludedCount = this.photoProcessor.getUniquePhotoCount(excludedPhotos);
+                    html += `<div class="folder-item file excluded">${indent}... and ${uniqueExcludedCount} excluded photos</div>`;
                 }
                 
                 if (includedPhotos.length > filesToShow) {
                     const indent = '  '.repeat(folders.length + 1);
-                    html += `<div class="folder-item file">${indent}... and ${includedPhotos.length - filesToShow} more files</div>`;
+                    const remainingUniqueCount = uniqueIncludedCount - Math.min(filesToShow, uniqueIncludedCount);
+                    if (remainingUniqueCount > 0) {
+                        html += `<div class="folder-item file">${indent}... and ${remainingUniqueCount} more photos</div>`;
+                    }
                 }
             }
         }
@@ -1765,6 +1775,9 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
             
             verificationDiv.innerHTML = resultHTML;
             this.setProgress(100, 'Verification complete');
+
+            // Auto-scroll to verification results
+            this.scrollToVerificationResults();
             
         } catch (error) {
             console.error('Verification error:', error);
@@ -1826,31 +1839,31 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                     let phaseText = '';
                     switch (progress.phase) {
                         case 'checking_file':
-                            phaseText = '🔍 Checking file existence...';
+                            phaseText = 'Checking file existence...';
                             break;
                         case 'calculating_source_md5':
-                            phaseText = '🔢 Calculating source MD5...';
+                            phaseText = 'Calculating source MD5...';
                             break;
                         case 'calculating_target_md5':
-                            phaseText = '🔢 Calculating target MD5...';
+                            phaseText = 'Calculating target MD5...';
                             break;
                         case 'md5_match':
-                            phaseText = '✅ MD5 verified successfully!';
+                            phaseText = 'MD5 verified successfully!';
                             break;
                         case 'md5_mismatch':
-                            phaseText = '❌ MD5 mismatch detected!';
+                            phaseText = 'MD5 mismatch detected!';
                             break;
                         case 'file_missing':
-                            phaseText = '🔍 File missing at destination!';
+                            phaseText = 'File missing at destination!';
                             break;
                         case 'size_mismatch':
-                            phaseText = '📏 File size mismatch detected!';
+                            phaseText = 'File size mismatch detected!';
                             break;
                         case 'error':
-                            phaseText = '⚠️ Verification error occurred!';
+                            phaseText = 'Verification error occurred!';
                             break;
                         default:
-                            phaseText = '⚙️ Processing...';
+                            phaseText = 'Processing...';
                     }
                     phaseElement.textContent = phaseText;
                     
@@ -1883,12 +1896,15 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
             const resultHTML = this.createMD5ResultsHTML(results, durationText);
             verificationDiv.innerHTML = resultHTML;
             this.setProgress(100, 'MD5 verification complete');
+
+            // Auto-scroll to verification results
+            this.scrollToVerificationResults();
             
         } catch (error) {
             console.error('MD5 Verification error:', error);
             document.getElementById('verificationStatus').innerHTML = `
                 <div class="verification-error">
-                    <h4>❌ MD5 Verification Failed</h4>
+                    <h4>MD5 Verification Failed</h4>
                     <p>Error during MD5 verification: ${error.message || error}</p>
                 </div>
             `;
@@ -1902,25 +1918,25 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
         return `
             <div class="md5-verification-container">
                 <div class="md5-header">
-                    <h4>🔐 MD5 Hash Verification</h4>
+                    <h4>MD5 Hash Verification</h4>
                     <div class="md5-description">Performing cryptographic verification of file integrity</div>
                 </div>
-                
+
                 <div class="md5-progress-section">
                     <div class="md5-current-file-container">
                         <div class="md5-current-file-label">Current File:</div>
                         <div class="md5-current-file" id="md5-current-file">Initializing...</div>
                     </div>
-                    
+
                     <div class="md5-progress-bar-container">
                         <div class="md5-progress-bar-track">
                             <div class="md5-progress-bar" id="md5-progress-bar"></div>
                         </div>
                     </div>
-                    
-                    <div class="md5-phase" id="md5-phase">🚀 Starting verification...</div>
+
+                    <div class="md5-phase" id="md5-phase">Starting verification...</div>
                 </div>
-                
+
                 <div class="md5-stats-section">
                     <div class="md5-stat-item">
                         <div class="md5-stat-value" id="md5-processed">0</div>
@@ -1942,84 +1958,77 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
     createMD5ResultsHTML(results, durationText) {
         const successRate = results.total > 0 ? Math.round((results.verified / results.total) * 100) : 0;
         const isFullyVerified = results.verified === results.total && results.failed === 0;
-        
+
         return `
             <div class="md5-results-container">
                 <div class="md5-results-header">
-                    <h4>${isFullyVerified ? '✅ MD5 Verification Successful' : '⚠️ MD5 Verification Issues Found'}</h4>
+                    <h4>${isFullyVerified ? 'MD5 Verification Successful' : 'MD5 Verification Issues Found'}</h4>
                     <div class="md5-success-rate ${isFullyVerified ? 'success' : 'warning'}">
                         ${successRate}% Success Rate
                     </div>
                 </div>
-                
+
                 <div class="md5-results-grid">
                     <div class="md5-result-item">
-                        <div class="md5-result-icon">📊</div>
                         <div class="md5-result-content">
                             <div class="md5-result-value">${results.verified}/${results.total}</div>
                             <div class="md5-result-label">Files Verified</div>
                         </div>
                     </div>
-                    
+
                     <div class="md5-result-item">
-                        <div class="md5-result-icon">✅</div>
                         <div class="md5-result-content">
                             <div class="md5-result-value">${results.md5Match}</div>
                             <div class="md5-result-label">MD5 Match</div>
                         </div>
                     </div>
-                    
+
                     ${results.md5Mismatch > 0 ? `
                     <div class="md5-result-item warning">
-                        <div class="md5-result-icon">❌</div>
                         <div class="md5-result-content">
                             <div class="md5-result-value">${results.md5Mismatch}</div>
                             <div class="md5-result-label">MD5 Mismatch</div>
                         </div>
                     </div>` : ''}
-                    
+
                     <div class="md5-result-item">
-                        <div class="md5-result-icon">📏</div>
                         <div class="md5-result-content">
                             <div class="md5-result-value">${results.sizeMatch}</div>
                             <div class="md5-result-label">Size Match</div>
                         </div>
                     </div>
-                    
+
                     ${results.sizeMismatch > 0 ? `
                     <div class="md5-result-item warning">
-                        <div class="md5-result-icon">⚠️</div>
                         <div class="md5-result-content">
                             <div class="md5-result-value">${results.sizeMismatch}</div>
                             <div class="md5-result-label">Size Mismatch</div>
                         </div>
                     </div>` : ''}
-                    
+
                     ${results.missing > 0 ? `
                     <div class="md5-result-item error">
-                        <div class="md5-result-icon">🔍</div>
                         <div class="md5-result-content">
                             <div class="md5-result-value">${results.missing}</div>
                             <div class="md5-result-label">Missing Files</div>
                         </div>
                     </div>` : ''}
-                    
+
                     <div class="md5-result-item">
-                        <div class="md5-result-icon">⏱️</div>
                         <div class="md5-result-content">
                             <div class="md5-result-value">${durationText}</div>
                             <div class="md5-result-label">Duration</div>
                         </div>
                     </div>
                 </div>
-                
+
                 ${results.errors.length > 0 ? `
                 <div class="md5-errors-section">
-                    <h5>🚨 Issues Found (${results.errors.length}):</h5>
+                    <h5>Issues Found (${results.errors.length}):</h5>
                     <div class="md5-error-list">
                         ${results.errors.slice(0, 5).map(error => `
                             <div class="md5-error-item">
-                                <div class="md5-error-file">📄 ${error.file.split(/[/\\]/).pop()}</div>
+                                <div class="md5-error-file">${error.file.split(/[/\\]/).pop()}</div>
                                 <div class="md5-error-message">${error.error}</div>
                             </div>
                         `).join('')}
@@ -2032,6 +2041,33 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                 ` : ''}
             </div>
         `;
+    }
+
+    scrollToVerificationResults() {
+        // Auto-scroll to verification results in the completion modal
+        setTimeout(() => {
+            const verificationDiv = document.getElementById('verificationStatus');
+            const completionModal = document.getElementById('completionModal');
+
+            if (verificationDiv && completionModal && completionModal.classList.contains('active')) {
+                const modalBody = completionModal.querySelector('.modal-body');
+
+                if (modalBody) {
+                    // Scroll the modal body to bring verification results into view
+                    const verificationTop = verificationDiv.offsetTop - modalBody.offsetTop;
+                    modalBody.scrollTo({
+                        top: verificationTop - 20, // Add some padding
+                        behavior: 'smooth'
+                    });
+
+                    // Add a subtle highlight animation to draw attention
+                    verificationDiv.style.animation = 'verification-highlight 2s ease-out';
+                    setTimeout(() => {
+                        verificationDiv.style.animation = '';
+                    }, 2000);
+                }
+            }
+        }, 100); // Small delay to ensure DOM is updated
     }
 
     savePresetToStorage(preset) {

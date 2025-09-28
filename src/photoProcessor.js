@@ -178,23 +178,29 @@ class PhotoProcessor {
     }
 
     getExclusionStats() {
-        const totalPhotos = this.photos.length;
-        const excludedByPhoto = this.excludedPhotos.size;
-        
-        let excludedByFolder = 0;
+        // For UI statistics, count unique photo names (ignoring extensions)
+        const totalPhotos = this.getUniquePhotoCount(this.photos);
+        const includedPhotos = this.getUniquePhotoCount(this.getIncludedPhotos());
+        const totalExcluded = totalPhotos - includedPhotos;
+
+        // Calculate excluded by photo (unique names)
+        const excludedPhotosList = this.photos.filter(photo => this.excludedPhotos.has(photo.id));
+        const excludedByPhoto = this.getUniquePhotoCount(excludedPhotosList);
+
+        // Calculate excluded by folder (unique names)
+        let excludedByFolderList = [];
         for (const [folderPath, photos] of Object.entries(this.folderStructure)) {
             if (this.excludedFolders.has(folderPath)) {
                 // Only count photos not already individually excluded
-                excludedByFolder += photos.filter(photo => !this.excludedPhotos.has(photo.id)).length;
+                const folderExcludedPhotos = photos.filter(photo => !this.excludedPhotos.has(photo.id));
+                excludedByFolderList = excludedByFolderList.concat(folderExcludedPhotos);
             }
         }
-        
-        const totalExcluded = excludedByPhoto + excludedByFolder;
-        const included = Math.max(0, totalPhotos - totalExcluded);
-        
+        const excludedByFolder = this.getUniquePhotoCount(excludedByFolderList);
+
         return {
             total: totalPhotos,
-            included: included,
+            included: includedPhotos,
             excludedByPhoto: excludedByPhoto,
             excludedByFolder: excludedByFolder,
             totalExcluded: totalExcluded,
@@ -246,6 +252,21 @@ class PhotoProcessor {
         if (!this.excludedFolders) this.excludedFolders = new Set();
     }
 
+    // Helper method to get unique photo names (ignoring extensions)
+    getUniquePhotoNames(photoList = this.photos) {
+        const uniqueNames = new Set();
+        photoList.forEach(photo => {
+            const nameWithoutExtension = path.parse(photo.filename).name;
+            uniqueNames.add(nameWithoutExtension);
+        });
+        return uniqueNames;
+    }
+
+    // Helper method to count unique photos for statistics
+    getUniquePhotoCount(photoList = this.photos) {
+        return this.getUniquePhotoNames(photoList).size;
+    }
+
     // Statistics calculation methods
     calculateStatistics() {
         if (this.photos.length === 0) {
@@ -271,17 +292,18 @@ class PhotoProcessor {
     }
 
     calculateOverviewStats() {
-        const totalPhotos = this.photos.length;
-        const includedPhotos = this.getIncludedPhotos().length;
+        // For UI statistics, count unique photo names (ignoring extensions)
+        const totalPhotos = this.getUniquePhotoCount(this.photos);
+        const includedPhotos = this.getUniquePhotoCount(this.getIncludedPhotos());
         const excludedPhotos = totalPhotos - includedPhotos;
-        
+
         const totalSize = this.photos.reduce((sum, photo) => sum + photo.size, 0);
-        const avgSize = totalSize / totalPhotos;
-        
+        const avgSize = totalSize / this.photos.length; // Use actual file count for size calculations
+
         const dates = this.photos.map(p => new Date(p.metadata.dateTime)).filter(d => !isNaN(d));
         const oldestPhoto = dates.length > 0 ? new Date(Math.min(...dates)) : null;
         const newestPhoto = dates.length > 0 ? new Date(Math.max(...dates)) : null;
-        
+
         return {
             totalPhotos,
             includedPhotos,
