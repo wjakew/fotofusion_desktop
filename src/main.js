@@ -3,7 +3,6 @@ const path = require('path');
 const fs = require('fs').promises;
 
 let mainWindow;
-let presetManagerWindow = null;
 
 // Preset storage path
 const userDataPath = app.getPath('userData');
@@ -31,36 +30,6 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
-  });
-}
-
-function createPresetManagerWindow() {
-  if (presetManagerWindow) {
-    presetManagerWindow.focus();
-    return;
-  }
-
-  presetManagerWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
-    frame: false,
-    parent: mainWindow,
-    modal: true,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
-    },
-    show: false
-  });
-
-  presetManagerWindow.loadFile(path.join(__dirname, 'preset-manager.html'));
-
-  presetManagerWindow.once('ready-to-show', () => {
-    presetManagerWindow.show();
-  });
-
-  presetManagerWindow.on('closed', () => {
-    presetManagerWindow = null;
   });
 }
 
@@ -110,14 +79,17 @@ ipcMain.handle('select-folder', async (event, type) => {
 ipcMain.handle('save-preset-to-storage', async (event, preset) => {
   try {
     const presets = await loadPresets();
-    
-    // Add unique ID and timestamp
+
+    const incomingId = preset.id;
     preset.id = Date.now().toString();
     preset.createdAt = new Date().toISOString();
     preset.lastUsed = new Date().toISOString();
-    
-    // Check for duplicate names
-    const existingIndex = presets.findIndex(p => p.name === preset.name);
+
+    // An incoming id means "update this record" — match by id so renaming
+    // during edit updates in place instead of creating a duplicate
+    const existingIndex = incomingId
+      ? presets.findIndex(p => p.id === incomingId)
+      : presets.findIndex(p => p.name === preset.name);
     if (existingIndex >= 0) {
       // Update existing preset
       preset.id = presets[existingIndex].id;
@@ -273,10 +245,6 @@ ipcMain.handle('save-report', async (event, report, destinationPath) => {
   const reportPath = path.join(destinationPath, 'fotofusion-report.md');
   await fs.writeFile(reportPath, report);
   return reportPath;
-});
-
-ipcMain.handle('open-preset-manager', () => {
-  createPresetManagerWindow();
 });
 
 // Window controls

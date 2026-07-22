@@ -2414,232 +2414,357 @@ input[type="checkbox"] {
 }
 
 /* ============================================================
-   Preset Manager window
+   Preset Manager overlay
    ============================================================ */
-.preset-manager-container {
-    height: calc(100vh - 32px);
-    display: flex;
-    flex-direction: column;
+.pm-content {
+    height: min(640px, 88vh);
 }
 
-.preset-manager-header {
-    padding: var(--sp-5) var(--sp-6) var(--sp-4);
-    border-bottom: 1px solid var(--border);
-    background: var(--surface-1);
-}
-
-.preset-manager-header h2 {
-    margin: 0 0 var(--sp-2);
-    font-size: 20px;
-    line-height: 1.2;
-    letter-spacing: -0.01em;
-    color: var(--text-1);
-}
-
-.preset-manager-header p {
-    margin: 0;
-    color: var(--text-3);
-    font-size: var(--fs-md);
-}
-
-.preset-manager-toolbar {
-    padding: var(--sp-4) var(--sp-6);
-    border-bottom: 1px solid var(--border);
-    background: var(--surface-0);
-    display: flex;
-    gap: var(--sp-3);
-    align-items: center;
-}
-
-.preset-manager-content {
+.pm-content .modal-body {
+    max-height: none;
     flex: 1;
     display: flex;
+    flex-direction: column;
+    padding: var(--sp-5) var(--sp-6);
     overflow: hidden;
 }
 
-.preset-list-panel {
-    flex: 1;
-    border-right: 1px solid var(--border);
+.pm-header-title {
     display: flex;
-    flex-direction: column;
-}
-
-.preset-detail-panel {
-    width: 350px;
-    background: var(--surface-1);
-    display: flex;
-    flex-direction: column;
-}
-
-.preset-list-header {
-    padding: var(--sp-4) var(--sp-5);
-    border-bottom: 1px solid var(--border);
-    background: var(--surface-1);
-    display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: var(--sp-2);
+    min-width: 0;
 }
 
-.preset-count {
-    font-size: var(--fs-md);
+.pm-back {
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--r-md);
+    margin-left: calc(-1 * var(--sp-2));
+    transition-property: background-color, color, scale;
+    transition-duration: var(--dur-fast);
+    position: relative;
+}
+
+/* Extend hit area without growing the visual */
+.pm-back::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+}
+
+.pm-back:hover {
+    background: var(--surface-3);
+    color: var(--text-1);
+}
+
+.pm-back:active {
+    scale: 0.96;
+}
+
+.pm-count {
+    font-size: var(--fs-sm);
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
-.preset-search {
-    width: 200px;
-    padding: 6px var(--sp-3);
-    background: var(--surface-2);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--r-sm);
-    color: var(--text-1);
-    font-size: var(--fs-sm);
-    font-family: inherit;
+/* --- View swap (list <-> editor) --- */
+.pm-view {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
 }
 
-.preset-search:focus {
+/* display:flex above beats the UA's [hidden] rule — restore it explicitly */
+.pm-view[hidden],
+.pm-footer[hidden],
+.pm-back[hidden],
+.pm-dest-clear[hidden] {
+    display: none;
+}
+
+#pmEditView {
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Keep the scrollbar off the form fields */
+    padding-right: var(--sp-3);
+    margin-right: calc(-1 * var(--sp-3));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .pm-view.entering {
+        animation: pm-view-enter var(--dur-base) var(--ease-out) backwards;
+    }
+}
+
+@keyframes pm-view-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- List view --- */
+.pm-search {
+    width: 100%;
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-md);
+    color: var(--text-1);
+    font-size: var(--fs-md);
+    font-family: inherit;
+    flex-shrink: 0;
+    margin-bottom: var(--sp-3);
+    transition-property: border-color, box-shadow;
+    transition-duration: var(--dur-fast);
+}
+
+.pm-search::placeholder {
+    color: var(--text-4);
+}
+
+.pm-search:focus {
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
-.preset-list {
+.pm-list {
     flex: 1;
     overflow-y: auto;
-    padding: var(--sp-3);
+    min-height: 0;
+    /* Breathing room so row shadows aren't clipped by overflow */
+    padding: var(--sp-1) var(--sp-1) var(--sp-2);
+    margin: calc(-1 * var(--sp-1));
 }
 
-.preset-item {
+.pm-row {
     background: var(--surface-2);
-    border-radius: var(--r-lg);
+    border-radius: var(--r-lg); /* concentric: modal r-xl(14) - body padding steps down */
     box-shadow: var(--shadow-1), var(--edge-highlight);
     padding: var(--sp-3) var(--sp-4);
     margin-bottom: var(--sp-2);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    transition-property: background-color;
+    transition-duration: var(--dur-fast);
+}
+
+/* Staggered entrance — rows cascade in when the manager opens */
+@media (prefers-reduced-motion: no-preference) {
+    .pm-list.animate-in .pm-row {
+        animation: pm-row-enter var(--dur-slow) var(--ease-out) backwards;
+        animation-delay: calc(var(--i, 0) * 24ms);
+    }
+}
+
+@keyframes pm-row-enter {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.pm-row:hover {
+    background: var(--surface-3);
+}
+
+.pm-row-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.pm-row-name {
+    font-weight: 500;
+    color: var(--text-1);
+    font-size: var(--fs-md);
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pm-row-summary {
+    font-size: var(--fs-xs);
+    color: var(--text-3);
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pm-row-meta {
+    font-size: 11px;
+    color: var(--text-4);
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Actions fade in on hover or keyboard focus */
+.pm-row-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    opacity: 0;
+    flex-shrink: 0;
+    transition-property: opacity;
+    transition-duration: var(--dur-fast);
+}
+
+.pm-row:hover .pm-row-actions,
+.pm-row:focus-within .pm-row-actions {
+    opacity: 1;
+}
+
+.pm-use-btn {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text-1);
+    padding: var(--sp-1) var(--sp-3);
+    border-radius: var(--r-sm);
     cursor: pointer;
-    transition-property: background-color, box-shadow;
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    font-family: inherit;
+    min-height: 28px;
+    margin-right: var(--sp-1);
+    transition-property: background-color, border-color, color, scale;
     transition-duration: var(--dur-fast);
     position: relative;
 }
 
-.preset-item:hover {
-    background: var(--surface-3);
-}
-
-.preset-item.selected {
-    background: var(--accent-subtle);
-    box-shadow: inset 0 0 0 1px var(--accent), var(--shadow-1);
-}
-
-.preset-checkbox {
+.pm-use-btn::after {
+    content: '';
     position: absolute;
-    left: var(--sp-3);
-    top: var(--sp-3);
-    width: 16px;
-    height: 16px;
-    accent-color: var(--accent);
+    inset: -8px -2px;
 }
 
-.preset-item-content {
-    margin-left: 28px;
+.pm-use-btn:hover {
+    background: var(--accent-subtle);
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
-.preset-name {
-    font-weight: 600;
-    color: var(--text-1);
-    font-size: 15px;
-    margin-bottom: var(--sp-1);
+.pm-use-btn:active {
+    scale: 0.96;
 }
 
-.preset-details {
-    font-size: var(--fs-xs);
+.pm-icon-btn {
+    background: transparent;
+    border: none;
     color: var(--text-3);
-    line-height: 1.4;
-}
-
-.preset-meta {
-    margin-top: 6px;
-    font-size: 11px;
-    color: var(--text-4);
-}
-
-.preset-detail-header {
-    padding: var(--sp-4) var(--sp-5);
-    border-bottom: 1px solid var(--border);
-    background: var(--surface-1);
-}
-
-.preset-detail-content {
-    flex: 1;
-    padding: var(--sp-5);
-    overflow-y: auto;
-}
-
-.preset-detail-actions {
-    padding: var(--sp-4) var(--sp-5);
-    border-top: 1px solid var(--border);
-    background: var(--surface-1);
-    display: flex;
-    gap: var(--sp-2);
-}
-
-.detail-section {
-    margin-bottom: var(--sp-6);
-}
-
-.detail-section h4 {
-    font-size: var(--fs-md);
-    color: var(--text-1);
-    margin-bottom: var(--sp-2);
-    font-weight: 600;
-}
-
-.detail-property {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 6px;
-    font-size: var(--fs-sm);
-}
-
-.detail-label {
-    color: var(--text-3);
-}
-
-.detail-value {
-    color: var(--text-1);
-    font-weight: 500;
-}
-
-.no-preset-selected {
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--text-4);
-    height: 100%;
+    border-radius: var(--r-sm); /* concentric: row lg(10) - padding(6) */
+    transition-property: background-color, color, scale;
+    transition-duration: var(--dur-fast);
+    position: relative;
 }
 
-.import-export-section {
-    background: var(--surface-0);
-    border-top: 1px solid var(--border);
-    padding: var(--sp-4) var(--sp-6);
+.pm-icon-btn::after {
+    content: '';
+    position: absolute;
+    inset: -6px -2px;
 }
 
-.import-export-section h4 {
-    margin-bottom: var(--sp-3);
+.pm-icon-btn:hover {
+    background: var(--surface-3);
     color: var(--text-1);
 }
 
-.import-export-buttons {
-    display: flex;
-    gap: var(--sp-2);
-    flex-wrap: wrap;
+.pm-icon-btn.pm-delete:hover {
+    background: var(--danger-subtle);
+    color: var(--danger);
 }
 
-.selection-info {
-    font-size: var(--fs-xs);
-    color: var(--text-3);
-    margin-left: auto;
-    font-variant-numeric: tabular-nums;
+.pm-icon-btn:active {
+    scale: 0.96;
+}
+
+/* --- Inline delete confirmation --- */
+.pm-row.confirming {
+    background: var(--danger-subtle);
+}
+
+.pm-confirm-text {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--fs-sm);
+    color: var(--text-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pm-confirm-actions {
+    display: flex;
+    gap: var(--sp-2);
+    flex-shrink: 0;
+}
+
+/* Row collapse on delete — exit is subtler and quicker than the enter */
+.pm-row.leaving {
+    animation: pm-row-leave var(--dur-base) var(--ease-out) forwards;
+    pointer-events: none;
+}
+
+@keyframes pm-row-leave {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-4px);
+        max-height: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        margin-bottom: 0;
+        overflow: hidden;
+    }
+}
+
+.pm-row.leaving {
+    max-height: 80px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pm-row.leaving {
+        animation: none;
+        display: none;
+    }
+}
+
+/* --- Search / list states --- */
+.pm-no-match {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-4);
+    font-size: var(--fs-sm);
 }
 
 .empty-state {
@@ -2653,15 +2778,146 @@ input[type="checkbox"] {
     padding: 40px;
 }
 
+.empty-state svg {
+    margin-bottom: var(--sp-4);
+    opacity: 0.7;
+}
+
 .empty-state h3 {
     margin-bottom: var(--sp-2);
     color: var(--text-3);
+    font-size: var(--fs-lg);
+    letter-spacing: -0.01em;
 }
 
 .empty-state p {
-    margin-bottom: var(--sp-4);
+    margin-bottom: var(--sp-5);
     line-height: 1.5;
     max-width: 40ch;
+    text-wrap: pretty;
+}
+
+/* --- Footer --- */
+.pm-footer {
+    align-items: center;
+}
+
+.pm-status {
+    flex: 1;
+    text-align: right;
+    font-size: var(--fs-xs);
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: var(--dur-base);
+}
+
+.pm-status.visible {
+    opacity: 1;
+}
+
+.pm-edit-hint {
+    text-align: left;
+}
+
+/* --- Editor view --- */
+.pm-section-label {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: var(--sp-2) 0 var(--sp-3);
+}
+
+.pm-section-label .pm-optional {
+    font-weight: 400;
+    color: var(--text-4);
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: var(--sp-1);
+}
+
+.pm-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: var(--sp-4);
+}
+
+.pm-checkbox-group {
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: var(--sp-2);
+}
+
+.pm-dest {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-4);
+}
+
+.pm-dest-path {
+    flex: 1;
+    min-width: 0;
+    background: var(--surface-2);
+    border-radius: var(--r-sm);
+    padding: var(--sp-2) var(--sp-3);
+    font-size: var(--fs-sm);
+    font-family: var(--font-mono);
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: rtl; /* keep the tail (folder name) visible when truncated */
+    text-align: left;
+}
+
+.pm-dest-path.empty {
+    color: var(--text-4);
+    font-family: var(--font-ui);
+    direction: ltr;
+}
+
+.pm-dest-clear {
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--r-sm);
+    flex-shrink: 0;
+    transition-property: background-color, color, scale;
+    transition-duration: var(--dur-fast);
+    position: relative;
+}
+
+.pm-dest-clear::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+}
+
+.pm-dest-clear:hover {
+    background: var(--surface-3);
+    color: var(--text-1);
+}
+
+.pm-dest-clear:active {
+    scale: 0.96;
+}
+
+#pmNameHint {
+    color: var(--danger);
+    min-height: 0;
 }
 
 /* ============================================================

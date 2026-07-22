@@ -49,6 +49,9 @@ class FotoFusionApp {
         // Gate enter animations so app launch itself doesn't animate
         setTimeout(() => document.body.classList.add('ready'), 150);
 
+        // Preset manager overlay
+        this.presetManager = new PresetManagerOverlay(this);
+
         // First-run welcome tour
         this.onboarding = new OnboardingTour();
         this.onboarding.maybeShowFirstRun();
@@ -427,11 +430,14 @@ class FotoFusionApp {
             });
         });
 
-        // ESC: close menus first, then modals, then the log drawer
+        // ESC: close menus first, then step back inside the preset manager
+        // (delete confirm → editor → list), then modals, then the log drawer
         document.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape') return;
             if (document.querySelector('.menu-item.active')) {
                 this.closeAllMenus();
+            } else if (this.presetManager && this.presetManager.handleEscape()) {
+                // consumed by the preset manager overlay
             } else if (document.querySelector('.modal.active')) {
                 this.hideAllModals();
             } else if (document.getElementById('logDrawer').classList.contains('open')) {
@@ -1752,7 +1758,7 @@ Keyboard Shortcuts:
 
     async openPresetManager() {
         try {
-            await ipcRenderer.invoke('open-preset-manager');
+            await this.presetManager.open();
         } catch (error) {
             this.log(`Error opening preset manager: ${error.message}`, 'error');
         }
