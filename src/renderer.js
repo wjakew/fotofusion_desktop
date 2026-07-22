@@ -11,7 +11,24 @@ class FotoFusionApp {
         this.destinationPath = null;
         this.isProcessing = false;
         this.selectedStoredPresetId = null;
-        
+
+        // Thumbnail pipeline: object-URL cache + small concurrency queue
+        this.thumbCache = new Map();       // photoId -> { url, rotation } | null
+        this.thumbPending = new Map();     // photoId -> Promise
+        this.thumbQueueActive = 0;
+        this.thumbQueueWaiting = [];
+        this.thumbObserver = new IntersectionObserver((entries) => {
+            for (const entry of entries) {
+                if (!entry.isIntersecting) continue;
+                this.thumbObserver.unobserve(entry.target);
+                this.loadThumbnailInto(entry.target);
+            }
+        }, { rootMargin: '400px' });
+
+        // View state
+        this.viewMode = localStorage.getItem('ff.viewMode') === 'list' ? 'list' : 'grid';
+        this.previewDirty = false;
+
         // Ensure photoProcessor is properly initialized
         if (!this.photoProcessor.excludedPhotos) {
             this.photoProcessor.excludedPhotos = new Set();
@@ -24,9 +41,13 @@ class FotoFusionApp {
         document.getElementById('preserveOriginal').checked = true;
         
         this.initializeEventListeners();
+        this.applyViewMode();
         this.updateFormHints();
         this.updateButtons();
         this.log('Application started', 'info');
+
+        // Gate enter animations so app launch itself doesn't animate
+        setTimeout(() => document.body.classList.add('ready'), 150);
     }
 
     initializeEventListeners() {
@@ -118,6 +139,59 @@ class FotoFusionApp {
             this.selectAllFolders(false);
         });
 
+        // Workspace tabs
+        document.getElementById('tabPhotosBtn').addEventListener('click', () => {
+            this.switchTab('photos');
+        });
+
+        document.getElementById('tabPreviewBtn').addEventListener('click', () => {
+            this.switchTab('preview');
+        });
+
+        // Grid / list view toggle
+        document.getElementById('viewGridBtn').addEventListener('click', () => {
+            this.setViewMode('grid');
+        });
+
+        document.getElementById('viewListBtn').addEventListener('click', () => {
+            this.setViewMode('list');
+        });
+
+        // Log drawer
+        document.getElementById('logToggleBtn').addEventListener('click', () => {
+            this.toggleLogDrawer();
+        });
+
+        document.getElementById('logCloseBtn').addEventListener('click', () => {
+            this.toggleLogDrawer(false);
+        });
+
+        // Rail preset shortcuts
+        document.getElementById('railSavePresetBtn').addEventListener('click', () => {
+            this.showPresetModal('save');
+        });
+
+        document.getElementById('railLoadPresetBtn').addEventListener('click', () => {
+            this.showStoredPresets();
+        });
+
+        document.getElementById('railManagePresetsBtn').addEventListener('click', () => {
+            this.openPresetManager();
+        });
+
+        // Scroll-edge treatment: shadow under tabs / above action bar while scrollable content is cut off
+        const activeScroller = () => document.querySelector('.tab-panel.active #photoList, .tab-panel.active #folderPreview');
+        this.updateScrollEdges = () => {
+            const scroller = activeScroller();
+            const tabs = document.getElementById('workspaceTabs');
+            const bar = document.getElementById('actionBar');
+            if (!scroller) return;
+            tabs.classList.toggle('scrolled', scroller.scrollTop > 0);
+            bar.classList.toggle('is-scrollable', scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight > 1);
+        };
+        document.getElementById('photoList').addEventListener('scroll', this.updateScrollEdges, { passive: true });
+        document.getElementById('folderPreview').addEventListener('scroll', this.updateScrollEdges, { passive: true });
+
         // Modal event listeners
         this.initializeModalSystem();
 
@@ -192,6 +266,26 @@ class FotoFusionApp {
         document.getElementById('viewMenu').addEventListener('click', (e) => {
             e.stopPropagation();
             this.toggleMenu('viewMenu');
+        });
+
+        document.getElementById('tabPhotosMenuBtn').addEventListener('click', () => {
+            this.switchTab('photos');
+            this.closeAllMenus();
+        });
+
+        document.getElementById('tabPreviewMenuBtn').addEventListener('click', () => {
+            this.switchTab('preview');
+            this.closeAllMenus();
+        });
+
+        document.getElementById('toggleViewMenuBtn').addEventListener('click', () => {
+            this.setViewMode(this.viewMode === 'grid' ? 'list' : 'grid');
+            this.closeAllMenus();
+        });
+
+        document.getElementById('toggleLogBtn').addEventListener('click', () => {
+            this.toggleLogDrawer();
+            this.closeAllMenus();
         });
 
         document.getElementById('refreshBtn').addEventListener('click', () => {
@@ -324,17 +418,26 @@ class FotoFusionApp {
             });
         });
 
-        // ESC key to close modals
+        // ESC: close menus first, then modals, then the log drawer
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                this.hideAllModals();
+            if (e.key !== 'Escape') return;
+            if (document.querySelector('.menu-item.active')) {
                 this.closeAllMenus();
+            } else if (document.querySelector('.modal.active')) {
+                this.hideAllModals();
+            } else if (document.getElementById('logDrawer').classList.contains('open')) {
+                this.toggleLogDrawer(false);
             }
         });
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey || e.metaKey) {
+                if (e.shiftKey && (e.key === 'g' || e.key === 'G')) {
+                    e.preventDefault();
+                    this.setViewMode(this.viewMode === 'grid' ? 'list' : 'grid');
+                    return;
+                }
                 switch (e.key) {
                     case 'n':
                         e.preventDefault();
@@ -357,6 +460,18 @@ class FotoFusionApp {
                         if (this.sourcePath && !this.isProcessing) {
                             this.scanForPhotos();
                         }
+                        break;
+                    case 'l':
+                        e.preventDefault();
+                        this.toggleLogDrawer();
+                        break;
+                    case '1':
+                        e.preventDefault();
+                        this.switchTab('photos');
+                        break;
+                    case '2':
+                        e.preventDefault();
+                        this.switchTab('preview');
                         break;
                 }
             } else if (e.key === 'F5') {
@@ -383,17 +498,145 @@ class FotoFusionApp {
         });
     }
 
+    switchTab(tab) {
+        const isPhotos = tab === 'photos';
+        document.getElementById('tabPhotosBtn').classList.toggle('active', isPhotos);
+        document.getElementById('tabPreviewBtn').classList.toggle('active', !isPhotos);
+        document.getElementById('photosTab').classList.toggle('active', isPhotos);
+        document.getElementById('previewTab').classList.toggle('active', !isPhotos);
+
+        // Preview regeneration was skipped while the tab was hidden — catch up now
+        if (!isPhotos && this.previewDirty) {
+            this.updateFolderPreview();
+        }
+        if (this.updateScrollEdges) this.updateScrollEdges();
+    }
+
+    setViewMode(mode) {
+        this.viewMode = mode === 'list' ? 'list' : 'grid';
+        localStorage.setItem('ff.viewMode', this.viewMode);
+        this.applyViewMode();
+        this.updatePhotoList(this.photoProcessor.photos);
+    }
+
+    applyViewMode() {
+        const isGrid = this.viewMode === 'grid';
+        document.getElementById('photoList').classList.toggle('view-grid', isGrid);
+        document.getElementById('viewGridBtn').classList.toggle('active', isGrid);
+        document.getElementById('viewListBtn').classList.toggle('active', !isGrid);
+    }
+
+    toggleLogDrawer(force) {
+        const drawer = document.getElementById('logDrawer');
+        const open = typeof force === 'boolean' ? force : !drawer.classList.contains('open');
+        drawer.classList.toggle('open', open);
+        if (open) {
+            document.getElementById('logToggleBtn').classList.remove('has-error');
+            const logContainer = document.getElementById('logContainer');
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+    }
+
+    setProcessing(processing) {
+        this.isProcessing = processing;
+        document.body.classList.toggle('processing', processing);
+        this.updateButtons();
+    }
+
+    // --- Thumbnail pipeline -------------------------------------------------
+
+    runThumbTask(task) {
+        // Small concurrency limiter so a long scroll doesn't fire hundreds of file reads
+        return new Promise((resolve) => {
+            const run = async () => {
+                this.thumbQueueActive++;
+                try {
+                    resolve(await task());
+                } catch {
+                    resolve(null);
+                } finally {
+                    this.thumbQueueActive--;
+                    const next = this.thumbQueueWaiting.shift();
+                    if (next) next();
+                }
+            };
+            if (this.thumbQueueActive < 4) {
+                run();
+            } else {
+                this.thumbQueueWaiting.push(run);
+            }
+        });
+    }
+
+    getThumbnail(photo) {
+        if (this.thumbCache.has(photo.id)) return Promise.resolve(this.thumbCache.get(photo.id));
+        if (this.thumbPending.has(photo.id)) return this.thumbPending.get(photo.id);
+
+        const promise = this.runThumbTask(async () => {
+            let entry = null;
+            try {
+                const buf = await exifr.thumbnail(photo.path);
+                if (buf && buf.length) {
+                    const url = URL.createObjectURL(new Blob([buf], { type: 'image/jpeg' }));
+                    let rotation = 0;
+                    try {
+                        const rot = await exifr.rotation(photo.path);
+                        if (rot && rot.deg) rotation = rot.deg;
+                    } catch { /* orientation is best-effort */ }
+                    entry = { url, rotation };
+                }
+            } catch { /* no embedded preview (some CR3/ARW) — placeholder stays */ }
+            this.thumbCache.set(photo.id, entry);
+            this.thumbPending.delete(photo.id);
+            return entry;
+        });
+        this.thumbPending.set(photo.id, promise);
+        return promise;
+    }
+
+    async loadThumbnailInto(card) {
+        const photo = this.photoProcessor.photos.find(p => p.id === card.dataset.photoId);
+        if (!photo) return;
+        const entry = await this.getThumbnail(photo);
+        if (!entry || !card.isConnected) return;
+        const img = card.querySelector('img');
+        if (!img) return;
+        if (entry.rotation === 90 || entry.rotation === 180 || entry.rotation === 270) {
+            img.classList.add(`rot-${entry.rotation}`);
+        }
+        img.addEventListener('load', () => img.classList.add('loaded'), { once: true });
+        img.src = entry.url;
+    }
+
+    revokeThumbnails() {
+        for (const entry of this.thumbCache.values()) {
+            if (entry && entry.url) URL.revokeObjectURL(entry.url);
+        }
+        this.thumbCache.clear();
+        this.thumbPending.clear();
+        this.thumbQueueWaiting.length = 0;
+        this.thumbObserver.disconnect();
+    }
+
+    // --- Modals -------------------------------------------------------------
+
     showModal(modalId) {
-        document.getElementById(modalId).classList.add('active');
+        const modal = document.getElementById(modalId);
+        modal.classList.remove('closing');
+        modal.classList.add('active');
     }
 
     hideModal(modalId) {
-        document.getElementById(modalId).classList.remove('active');
+        const modal = document.getElementById(modalId);
+        if (!modal.classList.contains('active')) return;
+        modal.classList.remove('active');
+        modal.classList.add('closing');
+        setTimeout(() => modal.classList.remove('closing'), 150);
     }
 
     hideAllModals() {
-        document.querySelectorAll('.modal').forEach(modal => {
-            modal.classList.remove('active');
+        document.querySelectorAll('.modal.active').forEach(modal => {
+            this.hideModal(modal.id);
         });
     }
 
@@ -472,14 +715,18 @@ class FotoFusionApp {
 Keyboard Shortcuts:
 • Ctrl+N - New Project (Clear All)
 • Ctrl+S - Save Preset
-• Ctrl+O - Load Preset  
+• Ctrl+O - Load Preset
 • Ctrl+M - Manage Presets
 • Ctrl+R - Rescan Photos
+• Ctrl+L - Toggle Log
+• Ctrl+1 / Ctrl+2 - Photos / Preview Tab
+• Ctrl+Shift+G - Grid / List View
 • F5 - Refresh Preview
-• ESC - Close Menus/Modals
+• ESC - Close Menus/Modals/Log
         `.trim();
-        
+
         this.log(shortcuts, 'info');
+        this.toggleLogDrawer(true);
     }
 
     async selectFolder(type) {
@@ -488,15 +735,22 @@ Keyboard Shortcuts:
             if (folderPath) {
                 if (type === 'source') {
                     this.sourcePath = folderPath;
-                    document.getElementById('sourcePath').textContent = folderPath;
+                    const el = document.getElementById('sourcePath');
+                    el.textContent = folderPath;
+                    el.classList.remove('empty');
+                    el.title = folderPath;
                     document.getElementById('scanBtn').disabled = false;
                     this.log(`Source folder selected: ${folderPath}`, 'info');
                 } else {
                     this.destinationPath = folderPath;
-                    document.getElementById('destPath').textContent = folderPath;
+                    const el = document.getElementById('destPath');
+                    el.textContent = folderPath;
+                    el.classList.remove('empty');
+                    el.title = folderPath;
                     this.log(`Destination folder selected: ${folderPath}`, 'info');
                 }
                 this.updateFolderPreview();
+                this.updateButtons();
             }
         } catch (error) {
             this.log(`Error selecting folder: ${error.message}`, 'error');
@@ -510,8 +764,9 @@ Keyboard Shortcuts:
         }
 
         this.setProgress(0, 'Scanning for photos...');
-        this.isProcessing = true;
-        this.updateButtons();
+        this.setProcessing(true);
+        this.revokeThumbnails();
+        this.switchTab('photos');
 
         try {
             // Get current settings for destination checking
@@ -546,6 +801,12 @@ Keyboard Shortcuts:
             this.log(logMessage, 'success');
             this.setProgress(100, `Scan complete: ${uniquePhotoCount} photos found`);
 
+            // Rail quick stats: file count + total size
+            const totalBytes = photos.reduce((sum, p) => sum + (p.metadata.fileSize || 0), 0);
+            const totalGB = totalBytes / (1024 * 1024 * 1024);
+            const sizeText = totalGB >= 1 ? `${totalGB.toFixed(1)} GB` : `${Math.round(totalBytes / (1024 * 1024))} MB`;
+            document.getElementById('sourceStats').textContent = `${photos.length} files · ${sizeText}`;
+
             if (photos.length > 0 && this.destinationPath) {
                 document.getElementById('startCopyBtn').disabled = false;
             }
@@ -553,8 +814,7 @@ Keyboard Shortcuts:
             this.log(`Error scanning photos: ${error.message}`, 'error');
             this.setProgress(0, 'Scan failed');
         } finally {
-            this.isProcessing = false;
-            this.updateButtons();
+            this.setProcessing(false);
         }
     }
 
@@ -565,8 +825,7 @@ Keyboard Shortcuts:
         }
 
         this.setProgress(0, 'Starting copy process...');
-        this.isProcessing = true;
-        this.updateButtons();
+        this.setProcessing(true);
 
         try {
             const structureType = document.getElementById('folderStructure').value;
@@ -636,8 +895,7 @@ Keyboard Shortcuts:
             this.log(`Error during copy process: ${error.message}`, 'error');
             this.setProgress(0, 'Copy failed');
         } finally {
-            this.isProcessing = false;
-            this.updateButtons();
+            this.setProcessing(false);
         }
     }
 
@@ -645,65 +903,31 @@ Keyboard Shortcuts:
         const photoList = document.getElementById('photoList');
         const unknownCameraSection = document.getElementById('unknownCameraSection');
         if (!photoList || !unknownCameraSection) return;
-        
+
+        this.thumbObserver.disconnect();
+
         if (photos.length === 0) {
-            photoList.innerHTML = '<div class="no-photos">No photos found</div>';
+            photoList.innerHTML = `
+                <div class="no-photos">
+                    <h4>No photos yet</h4>
+                    <p>Choose a source folder in the left rail, then press Scan to find your photos.</p>
+                </div>
+            `;
             this.updateExclusionStats();
+            this.updateTabCount();
             return;
         }
 
         photoList.innerHTML = '';
-        photos.forEach((photo, index) => {
-            const item = document.createElement('div');
-            const isExcluded = this.photoProcessor.isPhotoExcluded(photo.id);
-            const existsInDest = photo.existsInDestination || false;
-
-            let photoClasses = 'photo-item';
-            if (isExcluded) photoClasses += ' excluded';
-            if (existsInDest) photoClasses += ' exists-in-destination';
-
-            item.className = photoClasses;
-
-            const sizeKB = Math.round(photo.metadata.fileSize / 1024);
-            const date = new Date(photo.metadata.dateTime).toLocaleDateString();
-
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.className = 'photo-checkbox';
-            checkbox.checked = !isExcluded;
-            checkbox.addEventListener('change', (e) => {
-                e.stopPropagation();
-                this.togglePhotoSelection(photo.id);
-            });
-
-            const photoInfo = document.createElement('div');
-            photoInfo.className = 'photo-info';
-
-            const existsIndicator = existsInDest ? ' ✓' : '';
-            const metadataText = existsInDest
-                ? `${photo.metadata.camera} | ${photo.metadata.lens} | ${date} | ${sizeKB}KB | Already exists`
-                : `${photo.metadata.camera} | ${photo.metadata.lens} | ${date} | ${sizeKB}KB`;
-
-            photoInfo.innerHTML = `
-                <div class="photo-filename">${photo.filename}${existsIndicator}</div>
-                <div class="photo-metadata">
-                    ${metadataText}
-                </div>
-            `;
-
-            item.appendChild(checkbox);
-            item.appendChild(photoInfo);
-            
-            // Allow clicking on the item to toggle selection
-            item.addEventListener('click', (e) => {
-                if (e.target === checkbox) return;
-                this.togglePhotoSelection(photo.id);
-            });
-            
+        const isGrid = this.viewMode === 'grid';
+        photos.forEach((photo) => {
+            const item = isGrid ? this.buildPhotoCard(photo) : this.buildPhotoListItem(photo);
             photoList.appendChild(item);
         });
-        
+
         this.updateExclusionStats();
+        this.updateTabCount();
+        if (this.updateScrollEdges) this.updateScrollEdges();
 
         // Check if there are any photos with 'Unknown Camera'
         const unknownCount = photos.filter(p => p.metadata.camera === 'Unknown Camera' || !p.metadata.camera).length;
@@ -714,6 +938,109 @@ Keyboard Shortcuts:
         } else {
             unknownCameraSection.style.display = 'none';
         }
+    }
+
+    buildPhotoListItem(photo) {
+        const item = document.createElement('div');
+        const isExcluded = this.photoProcessor.isPhotoExcluded(photo.id);
+        const existsInDest = photo.existsInDestination || false;
+
+        let photoClasses = 'photo-item';
+        if (isExcluded) photoClasses += ' excluded';
+        if (existsInDest) photoClasses += ' exists-in-destination';
+
+        item.className = photoClasses;
+        item.dataset.photoId = photo.id;
+
+        const sizeKB = Math.round(photo.metadata.fileSize / 1024);
+        const date = new Date(photo.metadata.dateTime).toLocaleDateString();
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'photo-checkbox';
+        checkbox.checked = !isExcluded;
+        checkbox.addEventListener('change', (e) => {
+            e.stopPropagation();
+            this.togglePhotoSelection(photo.id);
+        });
+
+        const photoInfo = document.createElement('div');
+        photoInfo.className = 'photo-info';
+
+        const existsIndicator = existsInDest ? ' ✓' : '';
+        const metadataText = existsInDest
+            ? `${photo.metadata.camera} | ${photo.metadata.lens} | ${date} | ${sizeKB}KB | Already exists`
+            : `${photo.metadata.camera} | ${photo.metadata.lens} | ${date} | ${sizeKB}KB`;
+
+        photoInfo.innerHTML = `
+            <div class="photo-filename">${photo.filename}${existsIndicator}</div>
+            <div class="photo-metadata">
+                ${metadataText}
+            </div>
+        `;
+
+        item.appendChild(checkbox);
+        item.appendChild(photoInfo);
+
+        // Allow clicking on the item to toggle selection
+        item.addEventListener('click', (e) => {
+            if (e.target === checkbox) return;
+            this.togglePhotoSelection(photo.id);
+        });
+
+        return item;
+    }
+
+    buildPhotoCard(photo) {
+        const card = document.createElement('div');
+        const isExcluded = this.photoProcessor.isPhotoExcluded(photo.id);
+        const existsInDest = photo.existsInDestination || false;
+
+        card.className = `photo-card${isExcluded ? ' excluded' : ''}${existsInDest ? ' exists-in-destination' : ''}`;
+        card.dataset.photoId = photo.id;
+        card.title = `${photo.filename}\n${photo.metadata.camera} · ${photo.metadata.lens}${existsInDest ? '\nAlready exists in destination' : ''}`;
+
+        const ext = (photo.filename.split('.').pop() || '').toUpperCase();
+        card.innerHTML = `
+            <div class="card-placeholder">${ext}</div>
+            <img alt="" draggable="false">
+            <div class="card-name">${photo.filename}</div>
+            <label class="card-check"><input type="checkbox" ${isExcluded ? '' : 'checked'}></label>
+            ${existsInDest ? '<span class="card-badge" title="Already exists in destination"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8"/></svg></span>' : ''}
+        `;
+
+        const checkbox = card.querySelector('.card-check input');
+        checkbox.addEventListener('change', (e) => {
+            e.stopPropagation();
+            this.togglePhotoSelection(photo.id);
+        });
+        card.querySelector('.card-check').addEventListener('click', (e) => e.stopPropagation());
+
+        card.addEventListener('click', () => {
+            this.togglePhotoSelection(photo.id);
+        });
+
+        // Cached thumbnails apply immediately; the rest lazy-load on scroll
+        const cached = this.thumbCache.get(photo.id);
+        if (cached) {
+            const img = card.querySelector('img');
+            if (cached.rotation === 90 || cached.rotation === 180 || cached.rotation === 270) {
+                img.classList.add(`rot-${cached.rotation}`);
+            }
+            img.addEventListener('load', () => img.classList.add('loaded'), { once: true });
+            img.src = cached.url;
+        } else if (cached === undefined) {
+            this.thumbObserver.observe(card);
+        }
+
+        return card;
+    }
+
+    updateTabCount() {
+        const el = document.getElementById('tabPhotosCount');
+        if (!el) return;
+        const count = this.photoProcessor.photos.length;
+        el.textContent = count > 0 ? ` ${count}` : '';
     }
 
     updateFormHints() {
@@ -821,9 +1148,17 @@ Keyboard Shortcuts:
         }
 
         const isExcluded = this.photoProcessor.togglePhotoExclusion(photoId);
-        this.updatePhotoList(this.photoProcessor.photos);
+
+        // In-place update — avoids rebuilding (and re-loading) the whole list per click
+        const el = document.querySelector(`#photoList [data-photo-id="${photoId}"]`);
+        if (el) {
+            el.classList.toggle('excluded', isExcluded);
+            const checkbox = el.querySelector('input[type="checkbox"]');
+            if (checkbox) checkbox.checked = !isExcluded;
+        }
+        this.updateExclusionStats();
         this.updateFolderPreview();
-        
+
         const photo = this.photoProcessor.photos.find(p => p.id === photoId);
         if (photo) {
             this.log(`${isExcluded ? 'Excluded' : 'Included'} photo: ${photo.filename}`, 'info');
@@ -906,9 +1241,24 @@ Keyboard Shortcuts:
         const preview = document.getElementById('folderPreview');
 
         if (!this.sourcePath || !this.destinationPath || this.photoProcessor.photos.length === 0) {
-            preview.innerHTML = '<div class="no-preview">Select source and destination, then scan for photos to preview structure</div>';
+            preview.innerHTML = `
+                <div class="no-preview">
+                    <h4>Nothing to preview</h4>
+                    <p>Select source and destination folders, then scan — the destination folder structure will appear here.</p>
+                </div>
+            `;
+            this.previewDirty = false;
             return;
         }
+
+        // Skip the expensive DOM rebuild while the Preview tab is hidden;
+        // switchTab() catches up when the tab becomes visible again.
+        if (!document.getElementById('previewTab').classList.contains('active')) {
+            this.previewDirty = true;
+            this.updateExclusionStats();
+            return;
+        }
+        this.previewDirty = false;
 
         const structureType = document.getElementById('folderStructure').value;
         const prefix = document.getElementById('folderPrefix').value.trim();
@@ -1036,9 +1386,14 @@ Keyboard Shortcuts:
         const entry = document.createElement('div');
         entry.className = `log-entry ${type}`;
         entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-        
+
         logContainer.appendChild(entry);
         logContainer.scrollTop = logContainer.scrollHeight;
+
+        // Errors shouldn't disappear silently into a closed drawer
+        if (type === 'error' && !document.getElementById('logDrawer').classList.contains('open')) {
+            document.getElementById('logToggleBtn').classList.add('has-error');
+        }
     }
 
     updateButtons() {
@@ -1067,6 +1422,50 @@ Keyboard Shortcuts:
         if (invertSelectionBtn) invertSelectionBtn.disabled = !hasPhotos || this.isProcessing;
         if (selectAllFoldersBtn) selectAllFoldersBtn.disabled = !hasPhotos || this.isProcessing;
         if (deselectAllFoldersBtn) deselectAllFoldersBtn.disabled = !hasPhotos || this.isProcessing;
+
+        // Action-bar status summary — always answers "where am I / what's next?"
+        const statusSummary = document.getElementById('statusSummary');
+        if (statusSummary) {
+            if (this.isProcessing) {
+                statusSummary.textContent = 'Working…';
+            } else if (!this.sourcePath) {
+                statusSummary.textContent = 'Select a source folder to begin';
+            } else if (!hasPhotos) {
+                statusSummary.textContent = this.destinationPath
+                    ? 'Ready to scan'
+                    : 'Ready to scan · select a destination to enable copying';
+            } else {
+                const stats = this.photoProcessor.getExclusionStats();
+                let text = `${stats.total} photos · ${stats.included} selected`;
+                if (stats.totalExcluded > 0) text += ` · ${stats.totalExcluded} excluded`;
+                if (!this.destinationPath) text += ' · select a destination to copy';
+                statusSummary.textContent = text;
+            }
+        }
+
+        // Explain WHY Start Copy is disabled instead of leaving a dead button
+        if (startBtn.disabled && !this.isProcessing) {
+            if (!this.sourcePath) {
+                startBtn.title = 'Select a source folder first';
+            } else if (!this.destinationPath) {
+                startBtn.title = 'Select a destination folder first';
+            } else if (!hasPhotos) {
+                startBtn.title = 'Scan for photos first';
+            } else {
+                startBtn.title = 'No photos selected — include at least one photo';
+            }
+        } else {
+            startBtn.title = '';
+        }
+
+        // Destination quick stats (folder count from the last generated structure)
+        const destStats = document.getElementById('destStats');
+        if (destStats) {
+            const folderCount = Object.keys(this.photoProcessor.folderStructure || {}).length;
+            destStats.textContent = hasPhotos && folderCount > 0
+                ? `${folderCount} folder${folderCount === 1 ? '' : 's'} will be created`
+                : '';
+        }
     }
 
     clearAll() {
@@ -1078,12 +1477,35 @@ Keyboard Shortcuts:
         this.photoProcessor.photos = [];
         this.photoProcessor.folderStructure = {};
         this.photoProcessor.clearExclusions();
-        
-        document.getElementById('sourcePath').textContent = 'No folder selected';
-        document.getElementById('destPath').textContent = 'No folder selected';
+        this.revokeThumbnails();
+        this.previewDirty = false;
+
+        const sourcePathEl = document.getElementById('sourcePath');
+        sourcePathEl.textContent = 'No folder selected';
+        sourcePathEl.classList.add('empty');
+        sourcePathEl.title = '';
+        const destPathEl = document.getElementById('destPath');
+        destPathEl.textContent = 'No folder selected';
+        destPathEl.classList.add('empty');
+        destPathEl.title = '';
+        document.getElementById('sourceStats').textContent = '';
+        document.getElementById('destStats').textContent = '';
         document.getElementById('photoCount').textContent = '0 photos';
-        document.getElementById('photoList').innerHTML = '<div class="no-photos">Scan for photos to see list</div>';
-        document.getElementById('folderPreview').innerHTML = '<div class="no-preview">Select source and destination to preview structure</div>';
+        document.getElementById('unknownCameraSection').style.display = 'none';
+        document.getElementById('photoList').innerHTML = `
+            <div class="no-photos">
+                <h4>No photos yet</h4>
+                <p>Choose a source folder in the left rail, then press Scan to find your photos.</p>
+            </div>
+        `;
+        document.getElementById('folderPreview').innerHTML = `
+            <div class="no-preview">
+                <h4>Nothing to preview</h4>
+                <p>Select source and destination folders, then scan — the destination folder structure will appear here.</p>
+            </div>
+        `;
+        this.updateTabCount();
+        this.switchTab('photos');
         document.getElementById('folderStructure').value = 'date';
         document.getElementById('dateFormat').value = 'YYYY/MM/DD';
         document.getElementById('folderPrefix').value = '';
@@ -1736,9 +2158,9 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
         }
         
         statsDiv.innerHTML = summaryHtml;
-        
+
         // Show the modal
-        document.getElementById('completionModal').classList.add('active');
+        this.showModal('completionModal');
     }
 
     async verifyFiles() {
@@ -1748,8 +2170,7 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
         }
 
         this.setProgress(0, 'Starting verification...');
-        this.isProcessing = true;
-        this.updateButtons();
+        this.setProcessing(true);
 
         try {
             const verificationDiv = document.getElementById('verificationStatus');
@@ -1835,8 +2256,7 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                 </div>
             `;
         } finally {
-            this.isProcessing = false;
-            this.updateButtons();
+            this.setProcessing(false);
         }
     }
 
@@ -1847,8 +2267,7 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
         }
 
         this.setProgress(0, 'Starting MD5 verification...');
-        this.isProcessing = true;
-        this.updateButtons();
+        this.setProcessing(true);
 
         try {
             const verificationDiv = document.getElementById('verificationStatus');
@@ -1957,8 +2376,7 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                 </div>
             `;
         } finally {
-            this.isProcessing = false;
-            this.updateButtons();
+            this.setProcessing(false);
         }
     }
 

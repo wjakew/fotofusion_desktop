@@ -1,6 +1,6 @@
 {
   "name": "FotoFusion",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "Cross-platform photo organization app",
   "main": "src/main.js",
   "scripts": {
