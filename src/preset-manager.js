@@ -309,7 +309,6 @@ class PresetManager {
     showEmptyState() {
         document.getElementById('presetList').innerHTML = `
             <div class="empty-state">
-                <div class="empty-state-icon">⚙️</div>
                 <h3>No Presets Found</h3>
                 <p>Create your first preset to get started with quick photo organization setups.</p>
                 <button class="btn primary" onclick="presetManager.createNewPreset()">Create First Preset</button>

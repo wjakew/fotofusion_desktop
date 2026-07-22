@@ -11,12 +11,17 @@
     "dist": "electron-builder",
     "dist-mac": "electron-builder --mac --universal"
   },
-  "keywords": ["electron", "photo", "organization", "metadata"],
+  "keywords": [
+    "electron",
+    "photo",
+    "organization",
+    "metadata"
+  ],
   "author": "Jakub Wawak",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^27.0.0",
-    "electron-builder": "^24.6.4"
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3"
   },
   "dependencies": {
     "exifr": "^7.1.3",
@@ -29,7 +34,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "assets/logo.icns"

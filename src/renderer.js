@@ -1,5 +1,9 @@
 const { ipcRenderer } = require('electron');
 
+// Inline SVG icons for the folder preview tree
+const ICON_FOLDER = '<svg class="tree-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.5 3.5A1.5 1.5 0 0 1 3 2h3.2l1.6 1.5H13A1.5 1.5 0 0 1 14.5 5v7A1.5 1.5 0 0 1 13 13.5H3A1.5 1.5 0 0 1 1.5 12v-8.5z"/></svg>';
+const ICON_FILE = '<svg class="tree-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M4 1.5h5L12.5 5v9a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5z"/><path d="M9 1.5V5h3.5"/></svg>';
+
 class FotoFusionApp {
     constructor() {
         this.photoProcessor = new PhotoProcessor();
@@ -916,7 +920,7 @@ Keyboard Shortcuts:
         const structure = this.photoProcessor.generateFolderStructure(structureType, prefix, dateFormat, startDateTime, endDateTime);
         
         let html = '<div class="folder-tree">';
-        html += `<div class="folder-item folder">📁 ${this.destinationPath}</div>`;
+        html += `<div class="folder-item folder">${ICON_FOLDER} ${this.destinationPath}</div>`;
         
         for (const [folderPath, photos] of Object.entries(structure)) {
             const folders = folderPath.split(require('path').sep);
@@ -956,12 +960,12 @@ Keyboard Shortcuts:
                             <input type="checkbox" class="folder-checkbox"
                                    ${!isFolderExcluded ? 'checked' : ''}
                                    data-folder-path="${folderPath}">
-                            📁 ${folder}${existingIndicator}
+                            ${ICON_FOLDER} ${folder}${existingIndicator}
                             <span class="folder-stats">${statsText}</span>
                         </div>
                     `;
                 } else {
-                    html += `<div class="folder-item folder">${indent}📁 ${folder}</div>`;
+                    html += `<div class="folder-item folder">${indent}${ICON_FOLDER} ${folder}</div>`;
                 }
             });
             
@@ -974,7 +978,7 @@ Keyboard Shortcuts:
                     const isPhotoExcluded = this.photoProcessor.isPhotoExcluded(photo.id);
                     html += `
                         <div class="folder-item file ${isPhotoExcluded ? 'excluded' : ''}">
-                            ${indent}📄 ${photo.filename}
+                            ${indent}${ICON_FILE} ${photo.filename}
                         </div>
                     `;
                 }
@@ -1233,12 +1237,12 @@ Keyboard Shortcuts:
                 const fs = require('fs');
                 try {
                     if (fs.existsSync(preset.destinationPath)) {
-                        folderStatus = ' • <span style="color: #27ae60;">✓ Folder exists</span>';
+                        folderStatus = ' • <span class="status-ok">Folder exists</span>';
                     } else {
-                        folderStatus = ' • <span style="color: #e74c3c;">✗ Folder missing</span>';
+                        folderStatus = ' • <span class="status-err">Folder missing</span>';
                     }
                 } catch (error) {
-                    folderStatus = ' • <span style="color: #f39c12;">? Folder check failed</span>';
+                    folderStatus = ' • <span class="status-warn">Folder check failed</span>';
                 }
             }
             
@@ -1370,7 +1374,7 @@ Keyboard Shortcuts:
     generateStatisticsHTML(stats) {
         return `
             <div class="stats-overview">
-                <h3>📊 Collection Overview</h3>
+                <h3>Collection Overview</h3>
                 <div class="stats-overview-grid">
                     <div class="stats-highlight">
                         <span class="stats-highlight-value">${stats.overview.totalPhotos}</span>
@@ -1400,37 +1404,37 @@ Keyboard Shortcuts:
 
             <div class="stats-container">
                 <div class="stats-section">
-                    <h4>📷 Cameras Used</h4>
+                    <h4>Cameras</h4>
                     ${this.generateStatsBarChart(stats.cameras)}
                 </div>
 
                 <div class="stats-section">
-                    <h4>🔍 Lenses Used</h4>
+                    <h4>Lenses</h4>
                     ${this.generateStatsBarChart(stats.lenses)}
                 </div>
 
                 <div class="stats-section">
-                    <h4>🎯 Aperture Settings</h4>
+                    <h4>Apertures</h4>
                     ${this.generateStatsBarChart(stats.apertures)}
                 </div>
 
                 <div class="stats-section">
-                    <h4>📊 ISO Values</h4>
+                    <h4>ISO</h4>
                     ${this.generateStatsBarChart(stats.isoValues)}
                 </div>
 
                 <div class="stats-section">
-                    <h4>⚡ Shutter Speeds</h4>
+                    <h4>Shutter Speeds</h4>
                     ${this.generateStatsBarChart(stats.shutterSpeeds)}
                 </div>
 
                 <div class="stats-section">
-                    <h4>📏 Focal Lengths</h4>
+                    <h4>Focal Lengths</h4>
                     ${this.generateStatsBarChart(stats.focalLengths)}
                 </div>
 
                 <div class="stats-section">
-                    <h4>💾 File Sizes</h4>
+                    <h4>File Sizes</h4>
                     <div class="stats-grid">
                         <div class="stats-item">
                             <span class="stats-label">Average:</span>
@@ -1452,22 +1456,22 @@ Keyboard Shortcuts:
                 </div>
 
                 <div class="stats-section">
-                    <h4>📅 Monthly Distribution</h4>
+                    <h4>Monthly Distribution</h4>
                     ${stats.dateRange ? this.generateStatsBarChart(stats.dateRange.monthlyDistribution) : '<div class="stats-item">No date information available</div>'}
                 </div>
 
                 <div class="stats-section">
-                    <h4>📁 File Formats</h4>
+                    <h4>File Formats</h4>
                     ${this.generateStatsBarChart(stats.fileFormats)}
                 </div>
 
                 <div class="stats-section">
-                    <h4>📐 Aspect Ratios</h4>
+                    <h4>Aspect Ratios</h4>
                     ${this.generateStatsBarChart(stats.aspectRatios)}
                 </div>
 
                 <div class="stats-section">
-                    <h4>🌍 Location Data</h4>
+                    <h4>Locations</h4>
                     ${this.generateLocationStats(stats.locations)}
                 </div>
             </div>
@@ -1773,7 +1777,7 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
             // Show verification results
             const resultHTML = `
                 <div class="verification-results">
-                    <h4>${results.verified === results.total ? '✅ Verification Successful' : '⚠️ Verification Issues Found'}</h4>
+                    <h4 class="${results.verified === results.total ? 'status-ok' : 'status-warn'}">${results.verified === results.total ? 'Verification successful' : 'Verification issues found'}</h4>
                     
                     <div class="stats-grid">
                         <div class="stats-item">
