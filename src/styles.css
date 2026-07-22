@@ -48,6 +48,7 @@
     --z-drawer: 500;
     --z-menu: 1000;
     --z-modal: 2000;
+    --z-onboarding: 3000;
 
     /* Layout */
     --rail-w: 260px;
@@ -2664,6 +2665,236 @@ input[type="checkbox"] {
 }
 
 /* ============================================================
+   Onboarding tour — first-run welcome carousel
+   ============================================================ */
+.onboarding {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-onboarding);
+    background: oklch(0 0 0 / 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition-property: opacity, visibility;
+    transition-duration: var(--dur-slow);
+    transition-timing-function: var(--ease-out);
+}
+
+.onboarding.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.onboarding.closing {
+    opacity: 0;
+    visibility: visible;
+    transition-duration: var(--dur-base);
+}
+
+/* Slides — stacked, crossfade + slide along one axis */
+.ob-viewport {
+    position: relative;
+    width: min(440px, 80vw);
+    height: 300px;
+}
+
+.ob-slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: var(--sp-4);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.ob-slide.active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.ob-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    border-radius: var(--r-xl);
+    background: var(--accent-subtle);
+    color: var(--accent);
+}
+
+.ob-title {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text-1);
+}
+
+.ob-body {
+    font-size: var(--fs-md);
+    color: var(--text-2);
+    line-height: 1.55;
+    max-width: 40ch;
+    text-wrap: pretty;
+}
+
+/* Staggered enter + directional exit (Next moves left, Back moves right) */
+@media (prefers-reduced-motion: no-preference) {
+    .ob-slide.active > * {
+        animation: ob-child-enter var(--dur-slow) var(--ease-out) backwards;
+    }
+
+    .ob-slide.active .ob-title {
+        animation-delay: 70ms;
+    }
+
+    .ob-slide.active .ob-body {
+        animation-delay: 140ms;
+    }
+
+    .onboarding[data-dir="back"] .ob-slide.active > * {
+        animation-name: ob-child-enter-back;
+    }
+
+    .ob-slide.leaving {
+        visibility: visible;
+        animation: ob-exit var(--dur-base) var(--ease-out) forwards;
+    }
+
+    .onboarding[data-dir="back"] .ob-slide.leaving {
+        animation-name: ob-exit-back;
+    }
+}
+
+@keyframes ob-child-enter {
+    from {
+        opacity: 0;
+        transform: translateX(24px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes ob-child-enter-back {
+    from {
+        opacity: 0;
+        transform: translateX(-24px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Exits are subtler than enters — half the travel */
+@keyframes ob-exit {
+    to {
+        opacity: 0;
+        transform: translateX(-12px);
+    }
+}
+
+@keyframes ob-exit-back {
+    to {
+        opacity: 0;
+        transform: translateX(12px);
+    }
+}
+
+/* Footer: Back · dots · Next */
+.ob-footer {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: min(440px, 80vw);
+    margin-top: var(--sp-6);
+}
+
+/* Dots stay optically centered regardless of button widths */
+.ob-dots {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: var(--sp-2);
+}
+
+.ob-dot {
+    position: relative;
+    width: 7px;
+    height: 7px;
+    padding: 0;
+    border: none;
+    border-radius: var(--r-full);
+    background: var(--border-strong);
+    cursor: pointer;
+    transition-property: background-color, width, transform;
+    transition-duration: var(--dur-base);
+    transition-timing-function: var(--ease-out);
+}
+
+/* Extend the tiny dot's hit area without moving its neighbors */
+.ob-dot::after {
+    content: "";
+    position: absolute;
+    inset: -14px -6px;
+}
+
+.ob-dot:hover {
+    background: var(--text-4);
+}
+
+.ob-dot.active {
+    width: 18px;
+    background: var(--accent);
+}
+
+.ob-dot:active {
+    transform: scale(0.9);
+}
+
+.ob-skip {
+    position: absolute;
+    top: var(--sp-6);
+    right: var(--sp-6);
+    padding: var(--sp-2) var(--sp-3);
+    border: none;
+    border-radius: var(--r-sm);
+    background: none;
+    font-family: var(--font-ui);
+    font-size: var(--fs-sm);
+    color: var(--text-3);
+    cursor: pointer;
+    transition-property: color;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: var(--ease-out);
+}
+
+.ob-skip:hover {
+    color: var(--text-1);
+}
+
+.ob-skip:active {
+    scale: 0.96;
+}
+
+/* ============================================================
    Reduced motion — gentler, non-vestibular equivalents
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
@@ -2692,6 +2923,12 @@ input[type="checkbox"] {
     }
 
     .menu-dropdown {
+        transform: none;
+    }
+
+    .ob-slide.active > *,
+    .ob-slide.leaving {
+        animation: none;
         transform: none;
     }
 }

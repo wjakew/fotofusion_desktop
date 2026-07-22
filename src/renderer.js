@@ -48,6 +48,10 @@ class FotoFusionApp {
 
         // Gate enter animations so app launch itself doesn't animate
         setTimeout(() => document.body.classList.add('ready'), 150);
+
+        // First-run welcome tour
+        this.onboarding = new OnboardingTour();
+        this.onboarding.maybeShowFirstRun();
     }
 
     initializeEventListeners() {
@@ -331,6 +335,11 @@ class FotoFusionApp {
         document.getElementById('shortcutsBtn').addEventListener('click', () => {
             this.showKeyboardShortcuts();
             this.closeAllMenus();
+        });
+
+        document.getElementById('showTourBtn').addEventListener('click', () => {
+            this.closeAllMenus();
+            this.onboarding.open();
         });
 
         document.getElementById('supportBtn').addEventListener('click', () => {
