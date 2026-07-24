@@ -175,11 +175,11 @@ class FotoFusionApp {
 
         // Rail preset shortcuts
         document.getElementById('railSavePresetBtn').addEventListener('click', () => {
-            this.showPresetModal('save');
+            this.openSavePreset();
         });
 
         document.getElementById('railLoadPresetBtn').addEventListener('click', () => {
-            this.showStoredPresets();
+            this.openLoadPreset();
         });
 
         document.getElementById('railManagePresetsBtn').addEventListener('click', () => {
@@ -255,12 +255,12 @@ class FotoFusionApp {
         });
 
         document.getElementById('savePresetMenuBtn').addEventListener('click', () => {
-            this.showPresetModal('save');
+            this.openSavePreset();
             this.closeAllMenus();
         });
 
         document.getElementById('loadPresetMenuBtn').addEventListener('click', () => {
-            this.showStoredPresets();
+            this.openLoadPreset();
             this.closeAllMenus();
         });
 
@@ -352,43 +352,18 @@ class FotoFusionApp {
     }
 
     initializeModalSystem() {
-        // Preset modal
-        document.getElementById('modalCloseBtn').addEventListener('click', () => {
-            this.hideModal('presetModal');
-        });
-
-        document.getElementById('modalCancelBtn').addEventListener('click', () => {
-            this.hideModal('presetModal');
-        });
-
-        document.getElementById('modalSaveBtn').addEventListener('click', () => {
-            this.savePreset();
-        });
-
         // About modal
         document.getElementById('aboutModalCloseBtn').addEventListener('click', () => {
             this.hideModal('aboutModal');
         });
 
+        // Keyboard shortcuts modal
+        document.getElementById('shortcutsModalCloseBtn').addEventListener('click', () => {
+            this.hideModal('shortcutsModal');
+        });
+
         document.getElementById('aboutModalOkBtn').addEventListener('click', () => {
             this.hideModal('aboutModal');
-        });
-
-        // Load preset modal
-        document.getElementById('loadPresetModalCloseBtn').addEventListener('click', () => {
-            this.hideModal('loadPresetModal');
-        });
-
-        document.getElementById('loadPresetModalCancelBtn').addEventListener('click', () => {
-            this.hideModal('loadPresetModal');
-        });
-
-        document.getElementById('loadFromFileBtn').addEventListener('click', () => {
-            this.loadPresetFromFile();
-        });
-
-        document.getElementById('loadSelectedPresetBtn').addEventListener('click', () => {
-            this.loadSelectedStoredPreset();
         });
 
         // Statistics modal
@@ -460,11 +435,11 @@ class FotoFusionApp {
                         break;
                     case 's':
                         e.preventDefault();
-                        this.showPresetModal('save');
+                        this.openSavePreset();
                         break;
                     case 'o':
                         e.preventDefault();
-                        this.showStoredPresets();
+                        this.openLoadPreset();
                         break;
                     case 'm':
                         e.preventDefault();
@@ -655,60 +630,15 @@ class FotoFusionApp {
         });
     }
 
-    showPresetModal(mode = 'save') {
-        const modal = document.getElementById('presetModal');
-        const title = document.getElementById('modalTitle');
-        const saveBtn = document.getElementById('modalSaveBtn');
-        const nameInput = document.getElementById('presetNameInput');
-        const summary = document.getElementById('presetSummary');
+    // Save / Load preset both live in the preset manager overlay now —
+    // save opens straight into its pre-filled editor, load opens its list
+    // in select mode where a row click applies the preset
+    openSavePreset() {
+        this.presetManager.open({ view: 'editor' });
+    }
 
-        if (mode === 'save') {
-            title.textContent = 'Save Preset';
-            saveBtn.textContent = 'Save';
-            nameInput.value = '';
-            nameInput.placeholder = 'Enter preset name';
-            
-            // Generate preset summary
-            const structureType = document.getElementById('folderStructure').value;
-            const dateFormat = document.getElementById('dateFormat').value;
-            const prefix = document.getElementById('folderPrefix').value;
-            const preserveOriginal = document.getElementById('preserveOriginal').checked;
-            const startDateTime = document.getElementById('startDateTime').value;
-            const endDateTime = document.getElementById('endDateTime').value;
-
-            summary.innerHTML = `
-                <h4>Preset Summary</h4>
-                <div class="summary-item">
-                    <span class="summary-label">Folder Structure:</span>
-                    <span class="summary-value">${this.getStructureDisplayName(structureType)}</span>
-                </div>
-                <div class="summary-item">
-                    <span class="summary-label">Date Format:</span>
-                    <span class="summary-value">${dateFormat}</span>
-                </div>
-                <div class="summary-item">
-                    <span class="summary-label">Prefix:</span>
-                    <span class="summary-value">${prefix || 'None'}</span>
-                </div>
-                <div class="summary-item">
-                    <span class="summary-label">Preserve Filenames:</span>
-                    <span class="summary-value">${preserveOriginal ? 'Yes' : 'No'}</span>
-                </div>
-                ${startDateTime ? `
-                <div class="summary-item">
-                    <span class="summary-label">Start Date/Time:</span>
-                    <span class="summary-value">${startDateTime}</span>
-                </div>` : ''}
-                ${endDateTime ? `
-                <div class="summary-item">
-                    <span class="summary-label">End Date/Time:</span>
-                    <span class="summary-value">${endDateTime}</span>
-                </div>` : ''}
-            `;
-        }
-
-        this.showModal('presetModal');
-        nameInput.focus();
+    openLoadPreset() {
+        this.presetManager.open({ mode: 'select' });
     }
 
     getStructureDisplayName(value) {
@@ -726,22 +656,72 @@ class FotoFusionApp {
     }
 
     showKeyboardShortcuts() {
-        const shortcuts = `
-Keyboard Shortcuts:
-• Ctrl+N - New Project (Clear All)
-• Ctrl+S - Save Preset
-• Ctrl+O - Load Preset
-• Ctrl+M - Manage Presets
-• Ctrl+R - Rescan Photos
-• Ctrl+L - Toggle Log
-• Ctrl+1 / Ctrl+2 - Photos / Preview Tab
-• Ctrl+Shift+G - Grid / List View
-• F5 - Refresh Preview
-• ESC - Close Menus/Modals/Log
-        `.trim();
+        const content = document.getElementById('shortcutsContent');
 
-        this.log(shortcuts, 'info');
-        this.toggleLogDrawer(true);
+        // Render once; the list is static per platform
+        if (!content.childElementCount) {
+            const isMac = process.platform === 'darwin';
+            const mod = isMac ? '⌘' : 'Ctrl';
+            const shift = isMac ? '⇧' : 'Shift';
+            const groups = [
+                { group: 'Project', items: [
+                    { keys: [mod, 'N'], label: 'New project (clear all)' },
+                    { keys: [mod, 'R'], label: 'Rescan photos' }
+                ] },
+                { group: 'Presets', items: [
+                    { keys: [mod, 'S'], label: 'Save preset' },
+                    { keys: [mod, 'O'], label: 'Load preset' },
+                    { keys: [mod, 'M'], label: 'Manage presets' }
+                ] },
+                { group: 'View', items: [
+                    { keys: [mod, '1'], label: 'Photos tab' },
+                    { keys: [mod, '2'], label: 'Destination preview tab' },
+                    { keys: [mod, shift, 'G'], label: 'Toggle grid / list view' },
+                    { keys: [mod, 'L'], label: 'Toggle activity log' },
+                    { keys: ['F5'], label: 'Refresh preview' }
+                ] },
+                { group: 'General', items: [
+                    { keys: ['Esc'], label: 'Close menus, dialogs, and the log' }
+                ] }
+            ];
+
+            let i = 0;
+            for (const { group, items } of groups) {
+                const label = document.createElement('div');
+                label.className = 'section-label';
+                label.textContent = group;
+                label.style.setProperty('--i', Math.min(i++, 10));
+                content.appendChild(label);
+
+                for (const item of items) {
+                    const row = document.createElement('div');
+                    row.className = 'shortcut-row';
+                    row.style.setProperty('--i', Math.min(i++, 10));
+
+                    const name = document.createElement('span');
+                    name.className = 'shortcut-label';
+                    name.textContent = item.label;
+
+                    const keys = document.createElement('span');
+                    keys.className = 'shortcut-keys';
+                    for (const key of item.keys) {
+                        const kbd = document.createElement('kbd');
+                        kbd.textContent = key;
+                        keys.appendChild(kbd);
+                    }
+
+                    row.appendChild(name);
+                    row.appendChild(keys);
+                    content.appendChild(row);
+                }
+            }
+        }
+
+        // Retrigger the staggered entrance on every open
+        content.classList.remove('animate-in');
+        void content.offsetWidth;
+        content.classList.add('animate-in');
+        this.showModal('shortcutsModal');
     }
 
     async selectFolder(type) {
@@ -947,11 +927,11 @@ Keyboard Shortcuts:
         // Check if there are any photos with 'Unknown Camera'
         const unknownCount = photos.filter(p => p.metadata.camera === 'Unknown Camera' || !p.metadata.camera).length;
         if (unknownCount > 0) {
-            unknownCameraSection.style.display = '';
+            unknownCameraSection.hidden = false;
             document.getElementById('unknownCameraInput').value = '';
             document.getElementById('unknownCameraFeedback').textContent = `${unknownCount} photo(s) with Unknown Camera.`;
         } else {
-            unknownCameraSection.style.display = 'none';
+            unknownCameraSection.hidden = true;
         }
     }
 
@@ -1506,7 +1486,7 @@ Keyboard Shortcuts:
         document.getElementById('sourceStats').textContent = '';
         document.getElementById('destStats').textContent = '';
         document.getElementById('photoCount').textContent = '0 photos';
-        document.getElementById('unknownCameraSection').style.display = 'none';
+        document.getElementById('unknownCameraSection').hidden = true;
         document.getElementById('photoList').innerHTML = `
             <div class="no-photos">
                 <h4>No photos yet</h4>
@@ -1538,29 +1518,6 @@ Keyboard Shortcuts:
         this.updateButtons();
         this.updateFormHints();
         this.log('Project cleared - Ready for new organization', 'info');
-    }
-
-    savePreset() {
-        const presetName = document.getElementById('presetNameInput').value.trim();
-        if (!presetName) {
-            this.log('Please enter a preset name', 'error');
-            return;
-        }
-
-        const preset = {
-            name: presetName,
-            folderStructure: document.getElementById('folderStructure').value,
-            dateFormat: document.getElementById('dateFormat').value,
-            folderPrefix: document.getElementById('folderPrefix').value.trim(),
-            preserveOriginal: document.getElementById('preserveOriginal').checked,
-            destinationPath: this.destinationPath || null,
-            startDateTime: document.getElementById('startDateTime').value || null,
-            endDateTime: document.getElementById('endDateTime').value || null
-        };
-
-        this.savePresetToStorage(preset);
-        this.log(`Preset "${presetName}" saved successfully`, 'success');
-        this.hideModal('presetModal');
     }
 
     applyPreset(preset) {
@@ -1601,159 +1558,6 @@ Keyboard Shortcuts:
         this.updateFolderPreview();
         this.updateFormHints();
         this.updateButtons();
-    }
-
-    async showStoredPresets() {
-        this.showModal('loadPresetModal');
-        
-        const listContainer = document.getElementById('storedPresetsList');
-        listContainer.innerHTML = '<div class="loading-presets">Loading presets...</div>';
-        
-        try {
-            const presets = await ipcRenderer.invoke('load-presets');
-            this.renderStoredPresetsList(presets);
-        } catch (error) {
-            listContainer.innerHTML = '<div class="loading-presets">Error loading presets</div>';
-            this.log(`Error loading presets: ${error.message}`, 'error');
-        }
-    }
-
-    renderStoredPresetsList(presets) {
-        const listContainer = document.getElementById('storedPresetsList');
-        
-        if (presets.length === 0) {
-            listContainer.innerHTML = `
-                <div class="no-stored-presets">
-                    <h4>No Saved Presets</h4>
-                    <p>You haven't saved any presets yet. Create and save a preset to see it here.</p>
-                    <button class="btn primary" onclick="app.hideModal('loadPresetModal')">Close</button>
-                </div>
-            `;
-            return;
-        }
-
-        listContainer.innerHTML = '';
-        
-        presets.forEach((preset, index) => {
-            const item = document.createElement('div');
-            item.className = 'stored-preset-item';
-            item.dataset.presetId = preset.id;
-
-            const radio = document.createElement('input');
-            radio.type = 'radio';
-            radio.name = 'storedPreset';
-            radio.className = 'stored-preset-radio';
-            radio.value = preset.id;
-            radio.addEventListener('change', () => {
-                this.selectStoredPreset(preset.id);
-            });
-
-            const info = document.createElement('div');
-            info.className = 'stored-preset-info';
-
-            const name = document.createElement('div');
-            name.className = 'stored-preset-name';
-            name.textContent = preset.name;
-
-            const details = document.createElement('div');
-            details.className = 'stored-preset-details';
-            details.innerHTML = `
-                ${this.getStructureDisplayName(preset.folderStructure)} • ${preset.dateFormat}
-                ${preset.folderPrefix ? `• Prefix: ${preset.folderPrefix}` : ''}
-                ${preset.destinationPath ? `• Dest: ${preset.destinationPath}` : ''}
-            `;
-
-            const meta = document.createElement('div');
-            meta.className = 'stored-preset-meta';
-            const createdDate = new Date(preset.createdAt).toLocaleDateString();
-            const lastUsed = preset.lastUsed ? new Date(preset.lastUsed).toLocaleDateString() : 'Never used';
-            
-            // Check if destination folder exists
-            let folderStatus = '';
-            if (preset.destinationPath) {
-                const fs = require('fs');
-                try {
-                    if (fs.existsSync(preset.destinationPath)) {
-                        folderStatus = ' • <span class="status-ok">Folder exists</span>';
-                    } else {
-                        folderStatus = ' • <span class="status-err">Folder missing</span>';
-                    }
-                } catch (error) {
-                    folderStatus = ' • <span class="status-warn">Folder check failed</span>';
-                }
-            }
-            
-            meta.innerHTML = `Created: ${createdDate} • Last used: ${lastUsed}${folderStatus}`;
-
-            info.appendChild(name);
-            info.appendChild(details);
-            info.appendChild(meta);
-
-            item.appendChild(radio);
-            item.appendChild(info);
-
-            item.addEventListener('click', () => {
-                radio.checked = true;
-                this.selectStoredPreset(preset.id);
-            });
-
-            listContainer.appendChild(item);
-        });
-
-        this.selectedStoredPresetId = null;
-        this.updateLoadPresetButton();
-    }
-
-    selectStoredPreset(presetId) {
-        this.selectedStoredPresetId = presetId;
-        
-        // Update visual selection
-        document.querySelectorAll('.stored-preset-item').forEach(item => {
-            item.classList.toggle('selected', item.dataset.presetId === presetId);
-        });
-        
-        this.updateLoadPresetButton();
-    }
-
-    updateLoadPresetButton() {
-        const loadBtn = document.getElementById('loadSelectedPresetBtn');
-        loadBtn.disabled = !this.selectedStoredPresetId;
-    }
-
-    async loadSelectedStoredPreset() {
-        if (!this.selectedStoredPresetId) return;
-        
-        try {
-            const presets = await ipcRenderer.invoke('load-presets');
-            const preset = presets.find(p => p.id === this.selectedStoredPresetId);
-            
-            if (preset) {
-                this.applyPreset(preset);
-                
-                // Update last used timestamp
-                await ipcRenderer.invoke('update-preset-last-used', preset.id);
-                
-                this.hideModal('loadPresetModal');
-                this.log(`Preset loaded: ${preset.name}`, 'success');
-            } else {
-                this.log('Preset not found', 'error');
-            }
-        } catch (error) {
-            this.log(`Error loading preset: ${error.message}`, 'error');
-        }
-    }
-
-    async loadPresetFromFile() {
-        try {
-            const preset = await ipcRenderer.invoke('load-preset');
-            if (preset) {
-                this.applyPreset(preset);
-                this.hideModal('loadPresetModal');
-                this.log(`Preset loaded from file: ${preset.name}`, 'success');
-            }
-        } catch (error) {
-            this.log(`Error loading preset from file: ${error.message}`, 'error');
-        }
     }
 
     async openPresetManager() {
@@ -1802,6 +1606,13 @@ Keyboard Shortcuts:
 
             console.log('Generated statistics:', stats); // Debug log
             content.innerHTML = this.generateStatisticsHTML(stats);
+            // Bar widths ride a CSS custom property (no inline style attributes) —
+            // set them after insert so the width transition animates from 0
+            requestAnimationFrame(() => {
+                content.querySelectorAll('.stat-bar-fill[data-w]').forEach(el => {
+                    el.style.setProperty('--w', el.dataset.w);
+                });
+            });
         } catch (error) {
             console.error('Error calculating statistics:', error);
             content.innerHTML = '<div class="loading-stats">Error calculating statistics</div>';
@@ -1813,21 +1624,21 @@ Keyboard Shortcuts:
             <div class="stats-overview">
                 <h3>Collection Overview</h3>
                 <div class="stats-overview-grid">
-                    <div class="stats-highlight">
-                        <span class="stats-highlight-value">${stats.overview.totalPhotos}</span>
-                        <span class="stats-highlight-label">Total Photos</span>
+                    <div class="stat-tile accent">
+                        <span class="stat-tile-value">${stats.overview.totalPhotos}</span>
+                        <span class="stat-tile-label">Total Photos</span>
                     </div>
-                    <div class="stats-highlight">
-                        <span class="stats-highlight-value">${stats.overview.includedPhotos}</span>
-                        <span class="stats-highlight-label">Selected for Copy</span>
+                    <div class="stat-tile accent">
+                        <span class="stat-tile-value">${stats.overview.includedPhotos}</span>
+                        <span class="stat-tile-label">Selected for Copy</span>
                     </div>
-                    <div class="stats-highlight">
-                        <span class="stats-highlight-value">${stats.overview.totalSizeMB} MB</span>
-                        <span class="stats-highlight-label">Total Size</span>
+                    <div class="stat-tile accent">
+                        <span class="stat-tile-value">${stats.overview.totalSizeMB} MB</span>
+                        <span class="stat-tile-label">Total Size</span>
                     </div>
-                    <div class="stats-highlight">
-                        <span class="stats-highlight-value">${stats.overview.timeSpanDays}</span>
-                        <span class="stats-highlight-label">Days Span</span>
+                    <div class="stat-tile accent">
+                        <span class="stat-tile-value">${stats.overview.timeSpanDays}</span>
+                        <span class="stat-tile-label">Days Span</span>
                     </div>
                 </div>
                 ${stats.dateRange ? `
@@ -1925,8 +1736,8 @@ Keyboard Shortcuts:
                 ${statsData.items.map(item => `
                     <div class="stats-bar-item">
                         <div class="stats-bar-label" title="${item.label}">${item.label}</div>
-                        <div class="stats-bar">
-                            <div class="stats-bar-fill" style="width: ${item.barWidth}%"></div>
+                        <div class="stat-bar">
+                            <div class="stat-bar-fill" data-w="${item.barWidth}"></div>
                         </div>
                         <div class="stats-bar-count">${item.count}</div>
                     </div>
@@ -1958,7 +1769,7 @@ Keyboard Shortcuts:
         `;
 
         if (locationData.topLocations.length > 0) {
-            html += '<div style="margin-top: 12px;"><strong>Top Locations:</strong></div>';
+            html += '<div class="section-label stats-locations-label">Top Locations</div>';
             locationData.topLocations.forEach(([name, data]) => {
                 html += `
                     <div class="stats-location-item">
@@ -2084,41 +1895,41 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                 <div class="summary-section">
                     <h4>Copy Summary</h4>
                     <div class="stats-row">
-                        <div class="stats-item">
-                            <div class="stats-value">${results.success}</div>
-                            <div class="stats-label">Photos Copied</div>
+                        <div class="stat-tile accent">
+                            <span class="stat-tile-value">${results.success}</span>
+                            <span class="stat-tile-label">Photos Copied</span>
                         </div>
-                        <div class="stats-item ${results.skipped > 0 ? 'info' : ''}">
-                            <div class="stats-value">${results.skipped || 0}</div>
-                            <div class="stats-label">Skipped (Exist)</div>
+                        <div class="stat-tile ${results.skipped > 0 ? 'info' : ''}">
+                            <span class="stat-tile-value">${results.skipped || 0}</span>
+                            <span class="stat-tile-label">Skipped (Exist)</span>
                         </div>
-                        <div class="stats-item ${results.failed > 0 ? 'warning' : ''}">
-                            <div class="stats-value">${results.failed}</div>
-                            <div class="stats-label">Failed</div>
+                        <div class="stat-tile ${results.failed > 0 ? 'danger' : ''}">
+                            <span class="stat-tile-value">${results.failed}</span>
+                            <span class="stat-tile-label">Failed</span>
                         </div>
-                        <div class="stats-item">
-                            <div class="stats-value">${results.foldersCopied}</div>
-                            <div class="stats-label">Folders Created</div>
+                        <div class="stat-tile">
+                            <span class="stat-tile-value">${results.foldersCopied}</span>
+                            <span class="stat-tile-label">Folders Created</span>
                         </div>
                     </div>
                     <div class="stats-detail">Success Rate: ${successRate}% of selected photos</div>
                     <div class="stats-detail">Excluded: ${results.excludedPhotos} photos (${excludedRate}% of total)</div>
                 </div>
-                
+
                 <div class="summary-section">
                     <h4>Performance</h4>
                     <div class="stats-row">
-                        <div class="stats-item">
-                            <div class="stats-value">${durationText}</div>
-                            <div class="stats-label">Duration</div>
+                        <div class="stat-tile">
+                            <span class="stat-tile-value">${durationText}</span>
+                            <span class="stat-tile-label">Duration</span>
                         </div>
-                        <div class="stats-item">
-                            <div class="stats-value">${mbPerSecond}</div>
-                            <div class="stats-label">MB/s</div>
+                        <div class="stat-tile">
+                            <span class="stat-tile-value">${mbPerSecond}</span>
+                            <span class="stat-tile-label">MB/s</span>
                         </div>
-                        <div class="stats-item">
-                            <div class="stats-value">${Math.round(results.success / (duration / 60) * 100) / 100}</div>
-                            <div class="stats-label">Photos/min</div>
+                        <div class="stat-tile">
+                            <span class="stat-tile-value">${Math.round(results.success / (duration / 60) * 100) / 100}</span>
+                            <span class="stat-tile-label">Photos/min</span>
                         </div>
                     </div>
                     <div class="stats-detail">Started: ${startTime}</div>
@@ -2174,6 +1985,11 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
         
         statsDiv.innerHTML = summaryHtml;
 
+        // Fresh run — clear any verification results from a previous copy
+        const verificationDiv = document.getElementById('verificationStatus');
+        verificationDiv.hidden = true;
+        verificationDiv.innerHTML = '';
+
         // Show the modal
         this.showModal('completionModal');
     }
@@ -2190,7 +2006,7 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
         try {
             const verificationDiv = document.getElementById('verificationStatus');
             verificationDiv.innerHTML = '<div class="verifying">Verifying files, please wait...</div>';
-            verificationDiv.style.display = 'block';
+            verificationDiv.hidden = false;
             
             // Get date/time range filters (same as used for copying)
             const startDateTime = document.getElementById('startDateTime').value;
@@ -2215,31 +2031,31 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                 <div class="verification-results">
                     <h4 class="${results.verified === results.total ? 'status-ok' : 'status-warn'}">${results.verified === results.total ? 'Verification successful' : 'Verification issues found'}</h4>
                     
-                    <div class="stats-grid">
-                        <div class="stats-item">
-                            <span class="stats-label">Files Verified:</span>
-                            <span class="stats-value">${results.verified}/${results.total}</span>
+                    <div class="tile-grid">
+                        <div class="stat-tile">
+                            <span class="stat-tile-value">${results.verified}/${results.total}</span>
+                            <span class="stat-tile-label">Files Verified</span>
                         </div>
-                        <div class="stats-item">
-                            <span class="stats-label">Size Match:</span>
-                            <span class="stats-value">${results.sizeMatch}</span>
+                        <div class="stat-tile">
+                            <span class="stat-tile-value">${results.sizeMatch}</span>
+                            <span class="stat-tile-label">Size Match</span>
                         </div>
                         ${results.sizeMismatch > 0 ? `
-                        <div class="stats-item warning">
-                            <span class="stats-label">Size Mismatch:</span>
-                            <span class="stats-value">${results.sizeMismatch}</span>
+                        <div class="stat-tile warning">
+                            <span class="stat-tile-value">${results.sizeMismatch}</span>
+                            <span class="stat-tile-label">Size Mismatch</span>
                         </div>` : ''}
                         ${results.missing > 0 ? `
-                        <div class="stats-item warning">
-                            <span class="stats-label">Missing Files:</span>
-                            <span class="stats-value">${results.missing}</span>
+                        <div class="stat-tile danger">
+                            <span class="stat-tile-value">${results.missing}</span>
+                            <span class="stat-tile-label">Missing Files</span>
                         </div>` : ''}
-                        <div class="stats-item">
-                            <span class="stats-label">Duration:</span>
-                            <span class="stats-value">${durationSeconds} seconds</span>
+                        <div class="stat-tile">
+                            <span class="stat-tile-value">${durationSeconds}s</span>
+                            <span class="stat-tile-label">Duration</span>
                         </div>
                     </div>
-                    
+
                     ${results.errors.length > 0 ? `
                     <div class="verification-errors">
                         <h5>Issues (${results.errors.length}):</h5>
@@ -2287,7 +2103,7 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
         try {
             const verificationDiv = document.getElementById('verificationStatus');
             verificationDiv.innerHTML = this.createMD5VerificationUI();
-            verificationDiv.style.display = 'block';
+            verificationDiv.hidden = false;
             
             // Get date/time range filters (same as used for copying)
             const startDateTime = document.getElementById('startDateTime').value;
@@ -2311,8 +2127,8 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                 (progress) => {
                     const percentage = Math.round((progress.current / progress.total) * 100);
                     
-                    // Update progress bar
-                    progressBarElement.style.width = `${percentage}%`;
+                    // Update progress bar via the shared --w custom property
+                    progressBarElement.style.setProperty('--w', percentage);
                     
                     // Update current file
                     currentFileElement.textContent = progress.filename;
@@ -2410,8 +2226,8 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                     </div>
 
                     <div class="md5-progress-bar-container">
-                        <div class="md5-progress-bar-track">
-                            <div class="md5-progress-bar" id="md5-progress-bar"></div>
+                        <div class="stat-bar">
+                            <div class="stat-bar-fill" id="md5-progress-bar"></div>
                         </div>
                     </div>
 
@@ -2419,17 +2235,17 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                 </div>
 
                 <div class="md5-stats-section">
-                    <div class="md5-stat-item">
-                        <div class="md5-stat-value" id="md5-processed">0</div>
-                        <div class="md5-stat-label">Processed</div>
+                    <div class="stat-tile">
+                        <span class="stat-tile-value" id="md5-processed">0</span>
+                        <span class="stat-tile-label">Processed</span>
                     </div>
-                    <div class="md5-stat-item">
-                        <div class="md5-stat-value" id="md5-verified">0</div>
-                        <div class="md5-stat-label">Verified</div>
+                    <div class="stat-tile">
+                        <span class="stat-tile-value" id="md5-verified">0</span>
+                        <span class="stat-tile-label">Verified</span>
                     </div>
-                    <div class="md5-stat-item">
-                        <div class="md5-stat-value" id="md5-failed">0</div>
-                        <div class="md5-stat-label">Failed</div>
+                    <div class="stat-tile">
+                        <span class="stat-tile-value" id="md5-failed">0</span>
+                        <span class="stat-tile-label">Failed</span>
                     </div>
                 </div>
             </div>
@@ -2449,57 +2265,43 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                     </div>
                 </div>
 
-                <div class="md5-results-grid">
-                    <div class="md5-result-item">
-                        <div class="md5-result-content">
-                            <div class="md5-result-value">${results.verified}/${results.total}</div>
-                            <div class="md5-result-label">Files Verified</div>
-                        </div>
+                <div class="tile-grid">
+                    <div class="stat-tile">
+                        <span class="stat-tile-value">${results.verified}/${results.total}</span>
+                        <span class="stat-tile-label">Files Verified</span>
                     </div>
 
-                    <div class="md5-result-item">
-                        <div class="md5-result-content">
-                            <div class="md5-result-value">${results.md5Match}</div>
-                            <div class="md5-result-label">MD5 Match</div>
-                        </div>
+                    <div class="stat-tile">
+                        <span class="stat-tile-value">${results.md5Match}</span>
+                        <span class="stat-tile-label">MD5 Match</span>
                     </div>
 
                     ${results.md5Mismatch > 0 ? `
-                    <div class="md5-result-item warning">
-                        <div class="md5-result-content">
-                            <div class="md5-result-value">${results.md5Mismatch}</div>
-                            <div class="md5-result-label">MD5 Mismatch</div>
-                        </div>
+                    <div class="stat-tile warning">
+                        <span class="stat-tile-value">${results.md5Mismatch}</span>
+                        <span class="stat-tile-label">MD5 Mismatch</span>
                     </div>` : ''}
 
-                    <div class="md5-result-item">
-                        <div class="md5-result-content">
-                            <div class="md5-result-value">${results.sizeMatch}</div>
-                            <div class="md5-result-label">Size Match</div>
-                        </div>
+                    <div class="stat-tile">
+                        <span class="stat-tile-value">${results.sizeMatch}</span>
+                        <span class="stat-tile-label">Size Match</span>
                     </div>
 
                     ${results.sizeMismatch > 0 ? `
-                    <div class="md5-result-item warning">
-                        <div class="md5-result-content">
-                            <div class="md5-result-value">${results.sizeMismatch}</div>
-                            <div class="md5-result-label">Size Mismatch</div>
-                        </div>
+                    <div class="stat-tile warning">
+                        <span class="stat-tile-value">${results.sizeMismatch}</span>
+                        <span class="stat-tile-label">Size Mismatch</span>
                     </div>` : ''}
 
                     ${results.missing > 0 ? `
-                    <div class="md5-result-item error">
-                        <div class="md5-result-content">
-                            <div class="md5-result-value">${results.missing}</div>
-                            <div class="md5-result-label">Missing Files</div>
-                        </div>
+                    <div class="stat-tile danger">
+                        <span class="stat-tile-value">${results.missing}</span>
+                        <span class="stat-tile-label">Missing Files</span>
                     </div>` : ''}
 
-                    <div class="md5-result-item">
-                        <div class="md5-result-content">
-                            <div class="md5-result-value">${durationText}</div>
-                            <div class="md5-result-label">Duration</div>
-                        </div>
+                    <div class="stat-tile">
+                        <span class="stat-tile-value">${durationText}</span>
+                        <span class="stat-tile-label">Duration</span>
                     </div>
                 </div>
 
@@ -2542,32 +2344,15 @@ ${stats.dateRange.monthlyDistribution.items.map(item => `- **${item.label}:** ${
                     });
 
                     // Add a subtle highlight animation to draw attention
-                    verificationDiv.style.animation = 'verification-highlight 2s ease-out';
+                    verificationDiv.classList.add('highlight');
                     setTimeout(() => {
-                        verificationDiv.style.animation = '';
+                        verificationDiv.classList.remove('highlight');
                     }, 2000);
                 }
             }
         }, 100); // Small delay to ensure DOM is updated
     }
 
-    savePresetToStorage(preset) {
-        try {
-            ipcRenderer.invoke('save-preset-to-storage', preset)
-                .then(savedPreset => {
-                    if (savedPreset) {
-                        this.log(`Preset "${preset.name}" saved successfully`, 'success');
-                    } else {
-                        this.log('Failed to save preset', 'error');
-                    }
-                })
-                .catch(error => {
-                    this.log(`Error saving preset: ${error.message}`, 'error');
-                });
-        } catch (error) {
-            this.log(`Error saving preset: ${error.message}`, 'error');
-        }
-    }
 }
 
 // Initialize app when DOM is loaded

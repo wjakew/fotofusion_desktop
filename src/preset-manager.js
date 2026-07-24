@@ -17,6 +17,8 @@ class PresetManagerOverlay {
         this.editingId = null;     // preset id being edited, null = creating
         this.confirmingId = null;  // preset id with the inline delete confirm open
         this.statusTimer = null;
+        this.mode = 'manage';      // 'manage' | 'select' — select applies a preset on row click (Load Preset)
+        this.directEntry = false;  // opened straight into the editor (Save Preset) — back/cancel/Esc close the modal
 
         this.el = {
             modal: document.getElementById('presetManagerModal'),
@@ -69,8 +71,8 @@ class PresetManagerOverlay {
 
     initializeEventListeners() {
         this.el.closeBtn.addEventListener('click', () => this.app.hideModal('presetManagerModal'));
-        this.el.backBtn.addEventListener('click', () => this.showList());
-        this.el.cancelBtn.addEventListener('click', () => this.showList());
+        this.el.backBtn.addEventListener('click', () => this.exitEditor());
+        this.el.cancelBtn.addEventListener('click', () => this.exitEditor());
         this.el.newBtn.addEventListener('click', () => this.showEditor(null));
         this.el.saveBtn.addEventListener('click', () => this.save());
         this.el.importBtn.addEventListener('click', () => this.import());
@@ -101,15 +103,23 @@ class PresetManagerOverlay {
 
     // --- Open / view switching ---------------------------------------------
 
-    async open() {
+    async open({ view = 'list', mode = 'manage' } = {}) {
+        this.mode = mode;
+        this.directEntry = view === 'editor';
         this.searchTerm = '';
         this.el.search.value = '';
         this.confirmingId = null;
-        this.switchView('list', { animate: false });
         await this.loadPresets();
-        this.renderList({ stagger: true });
-        this.app.showModal('presetManagerModal');
-        this.el.search.focus();
+        if (view === 'editor') {
+            // Save Preset entry point — straight into the editor, pre-filled
+            this.showEditor(null, { animate: false });
+            this.app.showModal('presetManagerModal');
+        } else {
+            this.switchView('list', { animate: false });
+            this.renderList({ stagger: true });
+            this.app.showModal('presetManagerModal');
+            this.el.search.focus();
+        }
     }
 
     // Returns true when Esc was consumed (renderer's Esc chain checks this
@@ -122,10 +132,20 @@ class PresetManagerOverlay {
             return true;
         }
         if (!this.el.editView.hidden) {
-            this.showList();
+            this.exitEditor();
             return true;
         }
         return false;
+    }
+
+    // Back-chevron / Cancel / Esc from the editor: in direct-entry (Save Preset)
+    // mode there is no list behind it — close the modal instead
+    exitEditor() {
+        if (this.directEntry) {
+            this.app.hideModal('presetManagerModal');
+        } else {
+            this.showList();
+        }
     }
 
     switchView(view, { animate = true } = {}) {
@@ -136,7 +156,7 @@ class PresetManagerOverlay {
         this.el.editFooter.hidden = isList;
         this.el.backBtn.hidden = isList;
         if (isList) {
-            this.el.title.textContent = 'Presets';
+            this.el.title.textContent = this.mode === 'select' ? 'Load Preset' : 'Presets';
             this.updateCount();
         } else {
             this.el.count.textContent = '';
@@ -158,9 +178,10 @@ class PresetManagerOverlay {
         this.el.search.focus();
     }
 
-    showEditor(preset) {
+    showEditor(preset, { animate = true } = {}) {
         this.editingId = preset ? preset.id : null;
-        this.el.title.textContent = preset ? 'Edit Preset' : 'New Preset';
+        this.el.title.textContent = this.directEntry ? 'Save Preset'
+            : (preset ? 'Edit Preset' : 'New Preset');
         this.el.nameHint.textContent = '';
 
         if (preset) {
@@ -190,7 +211,7 @@ class PresetManagerOverlay {
         }
 
         this.renderDestPath();
-        this.switchView('editor');
+        this.switchView('editor', { animate });
         this.el.name.focus();
     }
 
@@ -273,7 +294,7 @@ class PresetManagerOverlay {
 
     createRow(preset, index) {
         const row = document.createElement('div');
-        row.className = 'pm-row';
+        row.className = 'card-row pm-row';
         row.style.setProperty('--i', Math.min(index, 10));
         row.dataset.presetId = preset.id;
 
@@ -302,7 +323,14 @@ class PresetManagerOverlay {
         main.appendChild(name);
         main.appendChild(summary);
         main.appendChild(meta);
-        main.addEventListener('click', () => this.showEditor(preset));
+        // In select mode (Load Preset) a row click applies the preset directly
+        main.addEventListener('click', () => {
+            if (this.mode === 'select') {
+                this.use(preset);
+            } else {
+                this.showEditor(preset);
+            }
+        });
 
         const actions = document.createElement('div');
         actions.className = 'pm-row-actions';
@@ -463,7 +491,12 @@ class PresetManagerOverlay {
         if (saved) {
             this.app.log(`Preset ${this.editingId ? 'updated' : 'created'}: ${name}`, 'success');
             this.editingId = null;
-            await this.showList();
+            if (this.directEntry) {
+                // Save Preset flow — done, no list to return to
+                this.app.hideModal('presetManagerModal');
+            } else {
+                await this.showList();
+            }
         } else {
             this.el.nameHint.textContent = 'Could not save the preset — see the log for details';
         }

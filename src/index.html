@@ -12,12 +12,13 @@
     <!-- Custom Title Bar -->
     <div class="title-bar">
         <div class="title-bar-left">
-            <span class="app-title">fotofusion by jakub wawak</span>
+            <img class="app-icon" src="../assets/logo.svg" alt="" aria-hidden="true">
+            <span class="app-title">fotofusion</span>
         </div>
         <div class="title-bar-controls">
-            <button class="title-btn" id="minimizeBtn">−</button>
-            <button class="title-btn" id="maximizeBtn">□</button>
-            <button class="title-btn close" id="closeBtn">×</button>
+            <button class="title-btn minimize" id="minimizeBtn" aria-label="Minimize" title="Minimize"></button>
+            <button class="title-btn maximize" id="maximizeBtn" aria-label="Maximize" title="Maximize"></button>
+            <button class="title-btn close" id="closeBtn" aria-label="Close" title="Close"></button>
         </div>
     </div>
 
@@ -145,7 +146,7 @@
                 </div>
 
                 <!-- Camera Name for Unknowns -->
-                <div class="unknown-camera-bar" id="unknownCameraSection" style="display: none;">
+                <div class="unknown-camera-bar" id="unknownCameraSection" hidden>
                     <label for="unknownCameraInput">Unknown camera:</label>
                     <input type="text" id="unknownCameraInput" placeholder="Enter camera name">
                     <button class="btn-small" id="setUnknownCameraBtn">Apply</button>
@@ -293,29 +294,6 @@
         </div>
     </div>
 
-    <!-- Preset Modal -->
-    <div class="modal" id="presetModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modalTitle">Save Preset</h3>
-                <button class="modal-close" id="modalCloseBtn">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="presetNameInput">Preset Name:</label>
-                    <input type="text" id="presetNameInput" placeholder="Enter preset name">
-                </div>
-                <div class="preset-summary" id="presetSummary">
-                    <!-- Summary will be populated by JavaScript -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn secondary" id="modalCancelBtn">Cancel</button>
-                <button class="btn primary" id="modalSaveBtn">Save</button>
-            </div>
-        </div>
-    </div>
-
     <!-- About Modal -->
     <div class="modal" id="aboutModal">
         <div class="modal-content">
@@ -325,17 +303,16 @@
             </div>
             <div class="modal-body">
                 <div class="about-content">
-                    <img src="../assets/logo.png" alt="FotoFusion Logo" style="width: 100px; height: 100px;">
-                    <h4>FotoFusion v1.1.0</h4>
-                    <p>Professional photo organization tool</p>
-                    <p>Created by <strong>Jakub Wawak</strong></p>
-                    <br>
-                    <p><strong>Features:</strong></p>
-                    <ul>
-                        <li>Support for RAW and JPEG formats</li>
-                        <li>Metadata-based organization</li>
-                        <li>Flexible folder structures</li>
-                        <li>Copy reports and presets</li>
+                    <img class="about-logo" src="../assets/logo.png" alt="FotoFusion logo">
+                    <h4 class="about-name">FotoFusion <span class="about-version">v1.1.0</span></h4>
+                    <p class="about-tagline">Professional photo organization tool</p>
+                    <p class="about-byline">Created by Jakub Wawak</p>
+                    <div class="section-label about-features-label">Features</div>
+                    <ul class="about-features">
+                        <li><span class="about-check"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8"/></svg></span>Support for RAW and JPEG formats</li>
+                        <li><span class="about-check"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8"/></svg></span>Metadata-based organization</li>
+                        <li><span class="about-check"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8"/></svg></span>Flexible folder structures</li>
+                        <li><span class="about-check"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8"/></svg></span>Copy reports and presets</li>
                     </ul>
                 </div>
             </div>
@@ -345,22 +322,15 @@
         </div>
     </div>
 
-    <!-- Load Preset Modal -->
-    <div class="modal" id="loadPresetModal">
-        <div class="modal-content md">
+    <!-- Keyboard Shortcuts Modal -->
+    <div class="modal" id="shortcutsModal">
+        <div class="modal-content">
             <div class="modal-header">
-                <h3>Load Preset</h3>
-                <button class="modal-close" id="loadPresetModalCloseBtn">×</button>
+                <h3>Keyboard Shortcuts</h3>
+                <button class="modal-close" id="shortcutsModalCloseBtn">×</button>
             </div>
             <div class="modal-body">
-                <div class="stored-presets-list" id="storedPresetsList">
-                    <div class="loading-presets">Loading presets...</div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn secondary" id="loadPresetModalCancelBtn">Cancel</button>
-                <button class="btn secondary" id="loadFromFileBtn">Load from File</button>
-                <button class="btn primary" id="loadSelectedPresetBtn" disabled>Load Selected</button>
+                <div class="shortcuts-content stagger-rows" id="shortcutsContent"></div>
             </div>
         </div>
     </div>
@@ -376,7 +346,7 @@
                 <div class="completion-stats" id="completionStats">
                     <!-- Stats will be filled by JavaScript -->
                 </div>
-                <div class="verification-status" id="verificationStatus" style="margin-top: 15px; display: none;">
+                <div class="verification-status" id="verificationStatus" hidden>
                     <!-- Verification results will be shown here -->
                 </div>
             </div>
@@ -405,7 +375,7 @@
                 <!-- List view -->
                 <div class="pm-view" id="pmListView">
                     <input type="text" class="pm-search" id="pmSearch" placeholder="Search presets…" autocomplete="off" spellcheck="false">
-                    <div class="pm-list" id="pmList"></div>
+                    <div class="pm-list stagger-rows" id="pmList"></div>
                 </div>
                 <!-- Editor view (New / Edit) -->
                 <div class="pm-view" id="pmEditView" hidden>
@@ -414,7 +384,7 @@
                         <input type="text" id="pmName" placeholder="e.g. Wedding — Sony A7" autocomplete="off" spellcheck="false">
                         <div class="form-hint" id="pmNameHint"></div>
                     </div>
-                    <div class="pm-section-label">Organization</div>
+                    <div class="section-label">Organization</div>
                     <div class="pm-form-grid">
                         <div class="form-group">
                             <label for="pmStructure">Folder Structure:</label>
@@ -434,7 +404,7 @@
                             </label>
                         </div>
                     </div>
-                    <div class="pm-section-label">Destination <span class="pm-optional">optional</span></div>
+                    <div class="section-label">Destination <span class="optional-badge">optional</span></div>
                     <div class="pm-dest">
                         <div class="pm-dest-path empty" id="pmDestPath">No folder set</div>
                         <button class="btn-small" id="pmDestChooseBtn">Choose…</button>
@@ -442,7 +412,7 @@
                             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>
                         </button>
                     </div>
-                    <div class="pm-section-label">Time Range <span class="pm-optional">optional</span></div>
+                    <div class="section-label">Time Range <span class="optional-badge">optional</span></div>
                     <div class="pm-form-grid">
                         <div class="form-group datetime-picker">
                             <label for="pmStart">Start Date &amp; Time:</label>
