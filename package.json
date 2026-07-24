@@ -9,7 +9,7 @@
     "build-win": "electron-packager . fotofusion --platform=win32 --arch=x64 --out=dist/ --overwrite",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "dist-mac": "electron-builder --mac --universal"
+    "dist-mac": "COPYFILE_DISABLE=1 electron-builder --mac --universal"
   },
   "keywords": [
     "electron",
@@ -30,6 +30,8 @@
   "build": {
     "appId": "com.jakubwawak.fotofusion",
     "productName": "FotoFusion",
+    "afterPack": "scripts/clean-mac-appledouble.js",
+    "afterSign": "scripts/clean-mac-appledouble.js",
     "mac": {
       "target": [
         {
